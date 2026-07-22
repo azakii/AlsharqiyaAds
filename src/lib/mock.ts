@@ -1,7 +1,7 @@
 import type { Influencer, AdRequest } from "./types";
 
-const IMG = (seed: string) =>
-  `https://images.unsplash.com/${seed}?auto=format&fit=crop&w=600&q=70`;
+const MEDIA = "https://media.base44.com/images/public/6a568a5faa72478f74107d31";
+const IMG = (file: string) => `${MEDIA}/${file}`;
 
 export const MOCK_INFLUENCERS: Influencer[] = [
   {
@@ -16,8 +16,8 @@ export const MOCK_INFLUENCERS: Influencer[] = [
     views: 4522,
     clicks: 340,
     ad_requests: 12,
-    avatar_url: IMG("photo-1507003211169-0a1dd7228f2d"),
-    gallery: [IMG("photo-1531297484001-80022131f5a1"), IMG("photo-1498050108023-c5249f4df085")],
+    avatar_url: IMG("215e9e2cb_generated_a732d1bb.png"),
+    gallery: [],
     verified: true,
     status: "approved",
     socials: {
@@ -39,8 +39,8 @@ export const MOCK_INFLUENCERS: Influencer[] = [
     views: 5403,
     clicks: 410,
     ad_requests: 18,
-    avatar_url: IMG("photo-1519085360753-af0119f7cbe7"),
-    gallery: [IMG("photo-1517649763962-0c623066013b")],
+    avatar_url: IMG("4c6271fed_generated_a36d8b97.png"),
+    gallery: [],
     verified: true,
     status: "approved",
     socials: { instagram: "https://instagram.com", tiktok: "https://tiktok.com", x: "https://x.com", whatsapp: "https://wa.me/966500000002" },
@@ -57,7 +57,7 @@ export const MOCK_INFLUENCERS: Influencer[] = [
     views: 6804,
     clicks: 520,
     ad_requests: 24,
-    avatar_url: IMG("photo-1500648767791-00dcc994a43e"),
+    avatar_url: IMG("b124c6474_generated_e435674f.png"),
     gallery: [],
     verified: true,
     status: "approved",
@@ -75,7 +75,7 @@ export const MOCK_INFLUENCERS: Influencer[] = [
     views: 9503,
     clicks: 720,
     ad_requests: 30,
-    avatar_url: IMG("photo-1506794778202-cad84cf45f1d"),
+    avatar_url: IMG("f5807189d_generated_6fd903fe.png"),
     gallery: [],
     verified: true,
     status: "approved",
@@ -93,7 +93,7 @@ export const MOCK_INFLUENCERS: Influencer[] = [
     views: 2101,
     clicks: 150,
     ad_requests: 6,
-    avatar_url: IMG("photo-1544005313-94ddf0286df2"),
+    avatar_url: IMG("cbb551846_generated_6ce9632a.png"),
     gallery: [],
     verified: true,
     status: "approved",
@@ -111,7 +111,7 @@ export const MOCK_INFLUENCERS: Influencer[] = [
     views: 3212,
     clicks: 220,
     ad_requests: 9,
-    avatar_url: IMG("photo-1534528741775-53994a69daeb"),
+    avatar_url: IMG("690e8c301_generated_079913f0.png"),
     gallery: [],
     verified: true,
     status: "approved",

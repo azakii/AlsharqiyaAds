@@ -3,22 +3,31 @@ import { ArrowLeft, TrendingUp, MapPin, Users } from "lucide-react";
 import { Crown } from "@/components/Icons";
 import InfluencerExplorer from "@/components/InfluencerExplorer";
 import { getApprovedInfluencers } from "@/lib/data";
+import { getSettings } from "@/lib/settings";
 import { formatFollowers } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const influencers = await getApprovedInfluencers();
-  const totalFollowers = influencers.reduce((s, i) => s + i.followers, 0);
+  const [influencers, s] = await Promise.all([getApprovedInfluencers(), getSettings()]);
+  const totalFollowers = influencers.reduce((sum, i) => sum + i.followers, 0);
   const cities = new Set(influencers.map((i) => i.city)).size;
 
   return (
     <>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gold-radial">
-        <div className="container-max flex flex-col items-center py-24 text-center">
+      <section className="relative overflow-hidden">
+        {s.hero_image && (
+          <div className="absolute inset-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={s.hero_image} alt="" className="h-full w-full object-cover opacity-30" />
+            <div className="absolute inset-0 bg-gradient-to-b from-bg/70 via-bg/85 to-bg" />
+          </div>
+        )}
+
+        <div className="container-max relative flex flex-col items-center py-24 text-center">
           <span className="badge-gold">
-            <Crown className="h-3.5 w-3.5" /> المنصة الرسمية للمشاهير في المنطقة الشرقية
+            <Crown className="h-3.5 w-3.5" /> {s.hero_badge}
           </span>
 
           <div className="my-6 flex items-center gap-4 text-gold">
@@ -27,12 +36,9 @@ export default async function HomePage() {
             <span className="h-px w-12 bg-gold/40" />
           </div>
 
-          <h1 className="font-display text-6xl font-bold gold-text sm:text-7xl">إعلانات الشرقية</h1>
+          <h1 className="font-display text-6xl font-bold gold-text sm:text-7xl">{s.hero_title}</h1>
 
-          <p className="mt-6 max-w-2xl text-base leading-8 text-white/60">
-            اكتشف أبرز الشخصيات المؤثرة وصنّاع المحتوى في المنطقة الشرقية، وتواصل معهم مباشرة عبر
-            حساباتهم الرسمية الموثّقة.
-          </p>
+          <p className="mt-6 max-w-2xl text-base leading-8 text-white/70">{s.hero_subtitle}</p>
 
           <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
             <Link href="/#celebrities" className="btn-gold">
@@ -58,11 +64,8 @@ export default async function HomePage() {
       <section className="container-max py-16">
         <div className="card flex flex-col items-center bg-gold-radial px-6 py-16 text-center">
           <Crown className="h-8 w-8 text-gold" />
-          <h2 className="mt-5 font-display text-3xl font-bold gold-text">انضم إلى نخبة المؤثرين</h2>
-          <p className="mt-4 max-w-lg text-sm leading-7 text-white/55">
-            هل أنت صانع محتوى في المنطقة الشرقية؟ سجّل الآن واحصل على شارة التوثيق الذهبية وصل لآلاف
-            الشركات والمشاريع.
-          </p>
+          <h2 className="mt-5 font-display text-3xl font-bold gold-text">{s.cta_title}</h2>
+          <p className="mt-4 max-w-lg text-sm leading-7 text-white/55">{s.cta_text}</p>
           <Link href="/register" className="btn-gold mt-8">
             ابدأ التسجيل الآن <ArrowLeft className="h-4 w-4" />
           </Link>

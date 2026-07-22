@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import Logo from "./Logo";
+import type { SiteSettings } from "@/lib/settings";
 
 const LINKS = [
   { href: "/", label: "الرئيسية" },
@@ -14,13 +15,16 @@ const LINKS = [
   { href: "/admin", label: "لوحة الإدارة" },
 ];
 
-export default function Navbar() {
+export default function Navbar({ settings }: { settings: SiteSettings }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 border-b border-line/60 bg-bg/80 backdrop-blur-lg">
       <nav className="container-max flex h-[70px] items-center justify-between">
+        {/* Logo — first child so it sits on the right in RTL */}
+        <Logo brandName={settings.brand_name} brandNameEn={settings.brand_name_en} logoUrl={settings.logo_url} />
+
         <ul className="hidden items-center gap-7 md:flex">
           {LINKS.map((l) => {
             const active = pathname === l.href;
@@ -28,9 +32,7 @@ export default function Navbar() {
               <li key={l.href}>
                 <Link
                   href={l.href}
-                  className={`text-sm transition hover:text-gold ${
-                    active ? "text-gold" : "text-white/70"
-                  }`}
+                  className={`text-sm transition hover:text-gold ${active ? "text-gold" : "text-white/70"}`}
                 >
                   {l.label}
                 </Link>
@@ -39,15 +41,9 @@ export default function Navbar() {
           })}
         </ul>
 
-        <button
-          className="text-white/80 md:hidden"
-          onClick={() => setOpen((v) => !v)}
-          aria-label="القائمة"
-        >
+        <button className="text-white/80 md:hidden" onClick={() => setOpen((v) => !v)} aria-label="القائمة">
           {open ? <X /> : <Menu />}
         </button>
-
-        <Logo />
       </nav>
 
       {open && (

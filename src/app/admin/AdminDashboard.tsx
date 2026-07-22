@@ -3,14 +3,16 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, LogOut, Search, Plus,
+  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, LogOut, Search, Plus, Settings,
 } from "lucide-react";
 import { formatFollowers } from "@/lib/constants";
 import {
   setInfluencerStatus, deleteInfluencer, setAdRequestStatus, deleteAdRequest, logout,
 } from "@/lib/actions";
+import SettingsForm from "./SettingsForm";
 import type { Influencer, AdRequest } from "@/lib/types";
 import type { Stats } from "@/lib/data";
+import type { SiteSettings } from "@/lib/settings";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "قيد المراجعة",
@@ -19,15 +21,16 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function AdminDashboard({
-  influencers, adRequests, stats, demo,
+  influencers, adRequests, stats, settings, demo,
 }: {
   influencers: Influencer[];
   adRequests: AdRequest[];
   stats: Stats;
+  settings: SiteSettings;
   demo: boolean;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"influencers" | "ads">("influencers");
+  const [tab, setTab] = useState<"influencers" | "ads" | "settings">("influencers");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -74,7 +77,10 @@ export default function AdminDashboard({
       </div>
 
       {/* Tabs */}
-      <div className="mt-8 flex justify-end gap-2">
+      <div className="mt-8 flex flex-wrap justify-end gap-2">
+        <TabBtn active={tab === "settings"} onClick={() => setTab("settings")}>
+          <Settings className="h-3.5 w-3.5" /> إعدادات الموقع
+        </TabBtn>
         <TabBtn active={tab === "ads"} onClick={() => setTab("ads")}>
           طلبات الإعلان <Badge>{adRequests.length}</Badge>
         </TabBtn>
@@ -83,7 +89,9 @@ export default function AdminDashboard({
         </TabBtn>
       </div>
 
-      {tab === "influencers" ? (
+      {tab === "settings" ? (
+        <SettingsForm initial={settings} />
+      ) : tab === "influencers" ? (
         <>
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <div className="relative flex-1">

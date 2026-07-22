@@ -4,14 +4,21 @@
 
 :root {
   color-scheme: dark;
-  --font-display: "El Messiri", "Tajawal", system-ui, sans-serif;
-  --font-body: "Tajawal", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  /* theme colors (overridable at runtime from site settings) */
+  --c-bg: #06080b;
+  --c-bg-soft: #0b0e13;
+  --c-card: #10141b;
+  --c-gold: #d4a017;
+  --c-gold-light: #f5d17e;
+  --c-gold-dark: #b8860b;
+  --c-line: rgba(212, 160, 23, 0.16);
 }
 
 html,
 body {
-  background-color: #0a0a0b;
-  color: #ededed;
+  background-color: var(--c-bg);
+  color: #f2f4f7;
 }
 
 body {
@@ -29,10 +36,10 @@ body {
   width: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0a0b;
+  background: var(--c-bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(232, 197, 106, 0.25);
+  background: rgba(212, 160, 23, 0.25);
   border-radius: 20px;
 }
 

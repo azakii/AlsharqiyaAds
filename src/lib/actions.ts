@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin, supabaseEnabled } from "./supabase";
 import { adminCreds, makeToken, ADMIN_COOKIE, isAdmin } from "./auth";
+import { DEFAULT_SETTINGS, type SiteSettings } from "./settings";
 import type { InfluencerStatus, AdRequestStatus } from "./types";
 
 // ---------- Public submissions ----------
@@ -136,4 +137,24 @@ export async function deleteAdRequest(id: string) {
   }
   revalidatePath("/admin");
   return { ok: true };
+}
+
+// ---------- Site settings (CMS) ----------
+
+export async function saveSettings(formData: FormData) {
+  await guard();
+  const payload: Record<string, string> = { id: "1" as unknown as string };
+  (Object.keys(DEFAULT_SETTINGS) as (keyof SiteSettings)[]).forEach((k) => {
+    payload[k] = String(formData.get(k) ?? "");
+  });
+
+  if (!supabaseEnabled) {
+    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — فعّل Supabase لحفظ التغييرات فعلياً)." };
+  }
+  const sb = getSupabaseAdmin();
+  if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة." };
+  const { error } = await sb.from("site_settings").upsert({ ...payload, id: 1 });
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, message: "تم حفظ الإعدادات بنجاح." };
 }

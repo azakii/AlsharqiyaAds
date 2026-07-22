@@ -42,9 +42,39 @@ create table if not exists public.ad_requests (
   created_at        timestamptz default now()
 );
 
+-- جدول إعدادات الموقع (صف واحد id=1) — يتحكم فيه الأدمن من اللوحة
+create table if not exists public.site_settings (
+  id                integer primary key default 1,
+  brand_name        text,
+  brand_name_en     text,
+  logo_url          text,
+  hero_badge        text,
+  hero_title        text,
+  hero_subtitle     text,
+  hero_image        text,
+  cta_title         text,
+  cta_text          text,
+  footer_about      text,
+  contact_phone     text,
+  contact_email     text,
+  contact_location  text,
+  color_bg          text,
+  color_gold        text,
+  color_gold_light  text,
+  color_gold_dark   text,
+  updated_at        timestamptz default now(),
+  constraint single_row check (id = 1)
+);
+
 -- تفعيل Row Level Security
 alter table public.influencers enable row level security;
 alter table public.ad_requests enable row level security;
+alter table public.site_settings enable row level security;
+
+-- إعدادات الموقع تُقرأ من الجميع (لعرضها في الواجهة)
+create policy "public read settings"
+  on public.site_settings for select
+  using (true);
 
 -- المؤثرون المقبولون فقط يظهرون للعامة
 create policy "public read approved influencers"
