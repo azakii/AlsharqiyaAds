@@ -15,9 +15,32 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+/** "#D4A017" -> "212 160 23" (RGB channel triplet). Returns null on bad input. */
+function hexToTriplet(hex: string): string | null {
+  if (!hex) return null;
+  const h = hex.trim().replace(/^#/, "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return null;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `${r} ${g} ${b}`;
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const s = await getSettings();
-  const themeVars = `:root{--c-bg:${s.color_bg};--c-gold:${s.color_gold};--c-gold-light:${s.color_gold_light};--c-gold-dark:${s.color_gold_dark};}`;
+  const vars: string[] = [];
+  const map: Record<string, string> = {
+    "--c-bg": s.color_bg,
+    "--c-gold": s.color_gold,
+    "--c-gold-light": s.color_gold_light,
+    "--c-gold-dark": s.color_gold_dark,
+  };
+  for (const [name, hex] of Object.entries(map)) {
+    const t = hexToTriplet(hex);
+    if (t) vars.push(`${name}:${t}`);
+  }
+  const themeVars = vars.length ? `:root{${vars.join(";")}}` : "";
 
   return (
     <html lang="ar" dir="rtl">

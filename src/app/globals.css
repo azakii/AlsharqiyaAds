@@ -5,19 +5,19 @@
 :root {
   color-scheme: dark;
   --font-body: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
-  /* theme colors (overridable at runtime from site settings) */
-  --c-bg: #06080b;
-  --c-bg-soft: #0b0e13;
-  --c-card: #10141b;
-  --c-gold: #d4a017;
-  --c-gold-light: #f5d17e;
-  --c-gold-dark: #b8860b;
-  --c-line: rgba(212, 160, 23, 0.16);
+  /* theme colors as RGB channel triplets so Tailwind opacity modifiers work.
+     Overridable at runtime from site settings (see layout.tsx). */
+  --c-bg: 6 8 11;
+  --c-bg-soft: 11 14 19;
+  --c-card: 16 20 27;
+  --c-gold: 212 160 23;
+  --c-gold-light: 245 209 126;
+  --c-gold-dark: 184 134 11;
 }
 
 html,
 body {
-  background-color: var(--c-bg);
+  background-color: rgb(var(--c-bg));
   color: #f2f4f7;
 }
 
@@ -36,7 +36,7 @@ body {
   width: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--c-bg);
+  background: rgb(var(--c-bg));
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(212, 160, 23, 0.25);
