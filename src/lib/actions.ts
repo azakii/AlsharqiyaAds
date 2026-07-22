@@ -108,6 +108,51 @@ export async function setInfluencerStatus(id: string, status: InfluencerStatus) 
   return { ok: true };
 }
 
+/** Admin-only: add an influencer directly from the dashboard (skips the public review queue). */
+export async function adminCreateInfluencer(formData: FormData) {
+  await guard();
+
+  const status = (String(formData.get("status") || "approved") as InfluencerStatus) || "approved";
+  const payload = {
+    name: String(formData.get("name") || ""),
+    phone: String(formData.get("phone") || ""),
+    email: String(formData.get("email") || ""),
+    city: String(formData.get("city") || ""),
+    category: String(formData.get("category") || ""),
+    bio: String(formData.get("bio") || ""),
+    followers: Number(formData.get("followers") || 0),
+    avatar_url: String(formData.get("avatar_url") || ""),
+    socials: {
+      instagram: String(formData.get("instagram") || ""),
+      tiktok: String(formData.get("tiktok") || ""),
+      x: String(formData.get("x") || ""),
+      whatsapp: String(formData.get("whatsapp") || ""),
+      snapchat: String(formData.get("snapchat") || ""),
+    },
+    verified: status === "approved",
+    status,
+    views: 0,
+    clicks: 0,
+    ad_requests: 0,
+    gallery: [],
+  };
+
+  if (!payload.name || !payload.phone) {
+    return { ok: false, message: "الاسم ورقم الجوال مطلوبان." };
+  }
+
+  if (!supabaseEnabled) {
+    return { ok: true, demo: true, message: "تمت الإضافة (وضع تجريبي — فعّل Supabase لحفظ البيانات فعلياً)." };
+  }
+  const sb = getSupabaseAdmin();
+  if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة." };
+  const { error } = await sb.from("influencers").insert(payload);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true, message: "تمت إضافة المؤثر بنجاح." };
+}
+
 export async function deleteInfluencer(id: string) {
   await guard();
   if (supabaseEnabled) {

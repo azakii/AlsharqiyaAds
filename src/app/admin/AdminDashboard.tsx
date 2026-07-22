@@ -10,6 +10,7 @@ import {
   setInfluencerStatus, deleteInfluencer, setAdRequestStatus, deleteAdRequest, logout,
 } from "@/lib/actions";
 import SettingsForm from "./SettingsForm";
+import AddInfluencerModal from "./AddInfluencerModal";
 import type { Influencer, AdRequest } from "@/lib/types";
 import type { Stats } from "@/lib/data";
 import type { SiteSettings } from "@/lib/settings";
@@ -33,6 +34,7 @@ export default function AdminDashboard({
   const [tab, setTab] = useState<"influencers" | "ads" | "settings">("influencers");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const run = (fn: () => Promise<unknown>) =>
@@ -49,18 +51,23 @@ export default function AdminDashboard({
 
   return (
     <div className="container-max py-12">
+      {/* DOM order: title first (renders right in RTL), controls last (renders left) */}
       <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="text-right">
+          <h1 className="font-display text-3xl font-bold gold-text">لوحة التحكم</h1>
+          <p className="text-sm text-white/45">إدارة المؤثرين وطلبات الإعلانات</p>
+        </div>
         <div className="flex items-center gap-3">
-          <a href="/register" className="btn-gold"><Plus className="h-4 w-4" /> إضافة مؤثر</a>
+          <button onClick={() => setShowAdd(true)} className="btn-gold">
+            <Plus className="h-4 w-4" /> إضافة مؤثر
+          </button>
           <button onClick={() => run(async () => { await logout(); })} className="btn-outline">
             <LogOut className="h-4 w-4" /> خروج
           </button>
         </div>
-        <div className="text-left">
-          <h1 className="font-display text-3xl font-bold gold-text">لوحة التحكم</h1>
-          <p className="text-sm text-white/45">إدارة المؤثرين وطلبات الإعلانات</p>
-        </div>
       </div>
+
+      {showAdd && <AddInfluencerModal onClose={() => setShowAdd(false)} />}
 
       {demo && (
         <p className="mt-6 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-center text-xs text-gold">
