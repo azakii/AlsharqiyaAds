@@ -13,6 +13,7 @@
   --c-gold: 212 160 23;
   --c-gold-light: 245 209 126;
   --c-gold-dark: 184 134 11;
+  --c-muted: 152 163 180;
 }
 
 html,
@@ -43,9 +44,51 @@ body {
   border-radius: 20px;
 }
 
+/* Glass surfaces — matches reference exactly */
+.glass {
+  background: rgba(20, 22, 28, 0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgb(var(--c-gold) / 0.12);
+}
+.glass-card {
+  background: rgba(18, 20, 26, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card:hover {
+  border-color: rgb(var(--c-gold) / 0.3);
+  background: rgba(22, 24, 30, 0.7);
+}
+
+/* Verified badge: shimmer sweep + soft pulsing glow, as in the reference */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.shimmer-badge {
+  background: linear-gradient(
+    110deg,
+    rgb(var(--c-gold)) 35%,
+    rgb(var(--c-gold-light)),
+    rgb(var(--c-gold)) 65%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px -10px rgb(var(--c-gold) / 0.3); }
+  50% { box-shadow: 0 0 40px -8px rgb(var(--c-gold) / 0.5); }
+}
+.animate-glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
 @layer components {
   .container-max {
-    @apply mx-auto w-full max-w-6xl px-5;
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6;
   }
   .gold-text {
     @apply bg-gold-gradient bg-clip-text text-transparent;
@@ -60,7 +103,7 @@ body {
     @apply btn border border-line text-gold hover:bg-gold/10;
   }
   .card {
-    @apply rounded-2xl border border-line bg-bg-card/60 backdrop-blur-sm shadow-card;
+    @apply glass-card rounded-2xl shadow-card;
   }
   .field-label {
     @apply mb-2 block text-sm text-white/70;

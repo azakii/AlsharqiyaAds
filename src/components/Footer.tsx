@@ -6,7 +6,7 @@ import type { SiteSettings } from "@/lib/settings";
 
 export default function Footer({ settings }: { settings: SiteSettings }) {
   return (
-    <footer className="mt-20 border-t border-line/60 bg-bg-soft">
+    <footer className="mt-20 bg-bg-soft">
       <div className="container-max grid gap-10 py-14 md:grid-cols-3">
         <div>
           <Logo brandName={settings.brand_name} brandNameEn={settings.brand_name_en} logoUrl={settings.logo_url} />
@@ -32,7 +32,7 @@ export default function Footer({ settings }: { settings: SiteSettings }) {
         </div>
       </div>
 
-      <div className="border-t border-line/40">
+      <div className="border-t border-white/[0.06]">
         <div className="container-max flex flex-col items-center justify-between gap-3 py-5 text-xs text-white/40 sm:flex-row">
           <span>© {new Date().getFullYear()} {settings.brand_name}. جميع الحقوق محفوظة.</span>
           <span className="flex items-center gap-2 text-gold/70">

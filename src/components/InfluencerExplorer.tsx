@@ -25,37 +25,47 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
     });
   }, [influencers, q, city, category]);
 
+  const activeFilters = (city ? 1 : 0) + (category ? 1 : 0);
+
   return (
     <section id="celebrities" className="container-max scroll-mt-24 py-20">
       <div className="text-center">
         <span className="badge-gold mx-auto">نخبة المؤثرين الموثّقين</span>
         <h2 className="mt-4 font-display text-4xl font-bold gold-text">استكشف المؤثرين</h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm text-white/50">
+        <p className="mx-auto mt-3 max-w-xl text-sm text-muted">
           ابحث وصفِّ النتائج حسب المدينة، التصنيف، وعدد المتابعين
         </p>
       </div>
 
-      <div className="mx-auto mt-8 max-w-3xl">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gold" />
+      {/* unified search pill */}
+      <div className="relative z-30 mx-auto mt-8 max-w-4xl">
+        <div className="glass flex items-center gap-2 rounded-2xl p-2 shadow-2xl">
+          <div className="flex flex-1 items-center gap-3 px-4">
+            <Search className="h-5 w-5 flex-shrink-0 text-gold" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="ابحث عن مؤثر بالاسم أو المدينة أو التصنيف..."
-              className="field pr-11"
+              className="flex-1 bg-transparent py-3 text-sm text-white outline-none placeholder:text-muted"
             />
           </div>
           <button
             onClick={() => setShowFilters((v) => !v)}
-            className="btn-outline shrink-0"
+            className={`glass flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-medium transition-all ${
+              showFilters || activeFilters ? "text-gold" : "text-muted hover:text-gold"
+            }`}
           >
             <SlidersHorizontal className="h-4 w-4" /> فلترة
+            {activeFilters > 0 && (
+              <span className="grid h-4 w-4 place-items-center rounded-full bg-gold text-[10px] text-bg">
+                {activeFilters}
+              </span>
+            )}
           </button>
         </div>
 
         {showFilters && (
-          <div className="mt-3 grid gap-3 rounded-xl border border-line bg-black/30 p-4 sm:grid-cols-2">
+          <div className="glass mt-3 grid gap-3 rounded-2xl p-4 sm:grid-cols-2">
             <select value={city} onChange={(e) => setCity(e.target.value)} className="field">
               <option value="">كل المدن</option>
               {CITIES.map((c) => (
@@ -72,14 +82,14 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
         )}
       </div>
 
-      <p className="mt-8 text-center text-sm text-white/40">
+      <p className="mt-8 text-center text-sm text-muted">
         عرض <span className="text-gold">{filtered.length}</span> مؤثر
       </p>
 
       {filtered.length === 0 ? (
-        <p className="mt-10 text-center text-white/40">لا توجد نتائج مطابقة للبحث.</p>
+        <p className="mt-10 text-center text-muted">لا توجد نتائج مطابقة للبحث.</p>
       ) : (
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((inf) => (
             <InfluencerCard key={inf.id} inf={inf} />
           ))}

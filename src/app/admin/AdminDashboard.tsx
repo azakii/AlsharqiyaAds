@@ -108,7 +108,25 @@ export default function AdminDashboard({
 
           <div className="mt-5 space-y-3">
             {filtered.map((inf) => (
-              <div key={inf.id} className="card flex flex-wrap items-center justify-between gap-4 p-4">
+              <div key={inf.id} className="card flex flex-col items-start gap-4 p-4 sm:flex-row sm:items-center">
+                {/* DOM order avatar → info → controls: RTL renders avatar on the right, controls on the left */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={inf.avatar_url || "/avatar-placeholder.svg"}
+                  alt={inf.name}
+                  className="h-14 w-14 flex-shrink-0 rounded-full border-2 border-gold/20 object-cover"
+                />
+
+                <div className="min-w-0 flex-1 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <StatusPill status={inf.status} />
+                    <span className="font-semibold text-white">{inf.name}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-white/45">
+                    {inf.city} • {inf.category} • {formatFollowers(inf.followers)} متابع
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => run(() => setInfluencerStatus(inf.id, "approved"))}
@@ -132,20 +150,6 @@ export default function AdminDashboard({
                     <Trash2 className="h-3.5 w-3.5" /> حذف
                   </button>
                 </div>
-
-                <div className="flex items-center gap-4 text-right">
-                  <div>
-                    <div className="flex items-center justify-end gap-2">
-                      <StatusPill status={inf.status} />
-                      <span className="font-semibold text-white">{inf.name}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-white/45">
-                      {inf.city} • {inf.category} • {formatFollowers(inf.followers)} متابع
-                    </div>
-                  </div>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={inf.avatar_url || "/avatar-placeholder.svg"} alt={inf.name} className="h-12 w-12 rounded-full border border-line object-cover" />
-                </div>
               </div>
             ))}
             {filtered.length === 0 && <p className="py-10 text-center text-white/40">لا يوجد مؤثرون.</p>}
@@ -156,7 +160,6 @@ export default function AdminDashboard({
           {adRequests.map((r) => (
             <div key={r.id} className="card p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <span className="font-display text-lg text-gold">{r.budget.toLocaleString("en")} ر.س</span>
                 <div className="text-right">
                   <div className="flex items-center justify-end gap-2">
                     <StatusPill status={r.status} />
@@ -169,8 +172,9 @@ export default function AdminDashboard({
                   <p className="mt-2 max-w-md text-xs text-white/60">{r.details}</p>
                   <div className="mt-1 text-xs text-white/40">{r.phone} • {r.email}</div>
                 </div>
+                <span className="font-display text-lg text-gold">{r.budget.toLocaleString("en")} ر.س</span>
               </div>
-              <div className="mt-4 flex items-center gap-2">
+              <div className="mt-4 flex items-center justify-end gap-2">
                 <button onClick={() => run(() => setAdRequestStatus(r.id, "approved"))} className="inline-flex items-center gap-1 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs text-green-400 hover:bg-green-500/25" disabled={isPending}>
                   <Check className="h-3.5 w-3.5" /> قبول
                 </button>

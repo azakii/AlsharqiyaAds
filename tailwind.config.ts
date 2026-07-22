@@ -17,6 +17,7 @@ const config: Config = {
           muted: "#B99A48",
         },
         line: "rgba(212, 160, 23, 0.16)",
+        muted: "rgb(var(--c-muted) / <alpha-value>)",
       },
       fontFamily: {
         display: ["var(--font-body)", "sans-serif"],

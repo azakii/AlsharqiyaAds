@@ -7,12 +7,12 @@ import { Menu, X } from "lucide-react";
 import Logo from "./Logo";
 import type { SiteSettings } from "@/lib/settings";
 
+// "لوحة الإدارة" لا تظهر في القائمة الظاهرة للعامة — الوصول لها عبر /admin مباشرة
 const LINKS = [
   { href: "/", label: "الرئيسية" },
   { href: "/#celebrities", label: "المشاهير" },
   { href: "/register", label: "تسجيل كمؤثر" },
   { href: "/ad-request", label: "طلب إعلان" },
-  { href: "/admin", label: "لوحة الإدارة" },
 ];
 
 export default function Navbar({ settings }: { settings: SiteSettings }) {
@@ -20,7 +20,7 @@ export default function Navbar({ settings }: { settings: SiteSettings }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-line/60 bg-bg/80 backdrop-blur-lg">
+    <header className="sticky top-0 z-50 bg-bg/80 backdrop-blur-lg">
       <nav className="container-max flex h-[70px] items-center justify-between">
         {/* Logo — first child so it sits on the right in RTL */}
         <Logo brandName={settings.brand_name} brandNameEn={settings.brand_name_en} logoUrl={settings.logo_url} />
