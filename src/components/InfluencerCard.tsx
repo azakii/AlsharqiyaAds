@@ -10,7 +10,7 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
   return (
     <Link
       href={`/influencer/${inf.id}`}
-      className="glass-card group relative block cursor-pointer overflow-hidden rounded-2xl"
+      className="glass-card group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl"
     >
       {/* views badge */}
       <div className="glass absolute top-4 left-4 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5">
@@ -18,19 +18,20 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
         <span className="text-[11px] text-muted">{inf.views.toLocaleString("en")}</span>
       </div>
 
-      {/* verified badge: glow pulse + shimmer sweep */}
+      {/* verified badge: glow pulse + shimmer sweep — combined icon + "المنصة توصي به" label */}
       {inf.verified && (
-        <div className="absolute top-4 right-4 z-10">
+        <div className="absolute top-4 right-4 z-10 max-w-[62%]">
           <div className="relative">
             <div className="animate-glow-pulse absolute inset-0 rounded-full bg-gold/40 blur-md" />
-            <div className="shimmer-badge relative flex h-7 w-7 items-center justify-center rounded-full">
-              <BadgeCheck className="h-3.5 w-3.5 text-bg" />
+            <div className="shimmer-badge relative flex items-center gap-1 rounded-full px-2.5 py-1.5">
+              <BadgeCheck className="h-3 w-3 flex-shrink-0 text-bg" />
+              <span className="truncate text-[10px] font-semibold text-bg">المنصة توصي به</span>
             </div>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col items-center p-6 pt-12 text-center">
+      <div className="flex flex-1 flex-col items-center p-6 pt-14 text-center">
         {/* avatar with glow + hover ring */}
         <div className="relative mb-5">
           <div className="absolute inset-0 rounded-full bg-gold/20 blur-2xl transition-all duration-500 group-hover:bg-gold/30" />
@@ -43,14 +44,7 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
           />
         </div>
 
-        <div className="mb-1 flex items-center justify-center gap-1.5">
-          <h3 className="text-lg font-bold text-white">{inf.name}</h3>
-        </div>
-        {inf.verified && (
-          <span className="flex items-center gap-0.5 rounded-full border border-gold/20 bg-gold/10 px-1.5 py-0.5 text-[10px] text-gold">
-            <BadgeCheck className="h-3 w-3" /> المنصة توصي به
-          </span>
-        )}
+        <h3 className="mb-1 text-lg font-bold text-white">{inf.name}</h3>
 
         <p className="mb-3 mt-2 line-clamp-2 text-xs leading-relaxed text-muted">{inf.bio}</p>
 
@@ -87,7 +81,7 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
           </div>
         )}
 
-        <span className="w-full rounded-lg border border-gold/20 py-2.5 text-sm font-medium text-gold transition-all duration-300 group-hover:bg-gold group-hover:text-bg">
+        <span className="mt-auto w-full rounded-lg border border-gold/20 py-2.5 text-sm font-medium text-gold transition-all duration-300 group-hover:bg-gold group-hover:text-bg">
           عرض الملف الشخصي
         </span>
       </div>
