@@ -12,10 +12,16 @@ export function getSupabase(): SupabaseClient | null {
   return createClient(url, anonKey, { auth: { persistSession: false } });
 }
 
-/** Server-only client with elevated privileges for admin writes. */
+/** true when the service-role key is configured (required for admin writes to bypass RLS). */
+export const serviceRoleEnabled = Boolean(url && serviceKey);
+
+/**
+ * Server-only client with elevated privileges for admin writes (approve/reject/delete/edit).
+ * Deliberately does NOT fall back to the anon key: without the service-role key, writes would
+ * be silently blocked by Row Level Security (no error, zero rows affected) which is exactly the
+ * "الأزرار مش شغالة" symptom. Callers must check for null and surface a clear message instead.
+ */
 export function getSupabaseAdmin(): SupabaseClient | null {
-  if (!url) return null;
-  const key = serviceKey || anonKey;
-  if (!key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
+  if (!url || !serviceKey) return null;
+  return createClient(url, serviceKey, { auth: { persistSession: false } });
 }

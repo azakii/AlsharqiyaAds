@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import SupportWhatsapp from "@/components/SupportWhatsapp";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Navbar settings={s} />
         <main className="min-h-[70vh]">{children}</main>
         <Footer settings={s} />
+        <SupportWhatsapp number={s.support_whatsapp} />
       </body>
     </html>
   );

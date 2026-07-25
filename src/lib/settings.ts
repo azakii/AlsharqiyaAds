@@ -16,6 +16,7 @@ export interface SiteSettings {
   contact_phone: string;
   contact_email: string;
   contact_location: string;
+  support_whatsapp: string; // number for the floating support button, e.g. 9665xxxxxxxx
   color_bg: string;
   color_gold: string;
   color_gold_light: string;
@@ -39,6 +40,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   contact_phone: "+966 50 000 0000",
   contact_email: "info@eastern-ads.sa",
   contact_location: "المنطقة الشرقية، المملكة العربية السعودية",
+  support_whatsapp: "966500000000",
   color_bg: "#06080B",
   color_gold: "#D4A017",
   color_gold_light: "#F5D17E",

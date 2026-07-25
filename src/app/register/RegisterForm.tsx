@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import Stepper from "@/components/Stepper";
+import AvatarUploader from "@/components/AvatarUploader";
 import { CITIES, CATEGORIES } from "@/lib/constants";
 import { submitInfluencer } from "@/lib/actions";
+import { isSaudiPhone, SAUDI_PHONE_ERROR } from "@/lib/validators";
 
-const STEPS = ["البيانات الأساسية", "التفاصيل والمحتوى", "الصور والفيديو", "روابط التواصل"];
+const STEPS = ["البيانات الأساسية", "التفاصيل والمحتوى", "الصورة الشخصية", "روابط التواصل"];
 
 const empty = {
   name: "", phone: "", email: "", city: "",
@@ -18,10 +20,12 @@ const empty = {
 export default function RegisterForm() {
   const [step, setStep] = useState(0);
   const [data, setData] = useState(empty);
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const set = (k: keyof typeof empty, v: string) => setData((d) => ({ ...d, [k]: v }));
+  const phoneValid = !phoneTouched || isSaudiPhone(data.phone);
 
   async function handleSubmit() {
     setLoading(true);
@@ -48,8 +52,8 @@ export default function RegisterForm() {
   }
 
   const canNext =
-    step === 0 ? data.name && data.phone && data.city :
-    step === 1 ? data.category && data.bio :
+    step === 0 ? Boolean(data.name && data.phone && data.city && isSaudiPhone(data.phone)) :
+    step === 1 ? Boolean(data.category && data.bio) :
     true;
 
   return (
@@ -62,7 +66,15 @@ export default function RegisterForm() {
             <input className="field" placeholder="الاسم كما تريد أن يظهر" value={data.name} onChange={(e) => set("name", e.target.value)} />
           </Field>
           <Field label="رقم الجوال">
-            <input className="field" placeholder="05xxxxxxxx" value={data.phone} onChange={(e) => set("phone", e.target.value)} />
+            <input
+              className={`field ${!phoneValid ? "border-red-500/60" : ""}`}
+              placeholder="05xxxxxxxx"
+              dir="ltr"
+              value={data.phone}
+              onChange={(e) => set("phone", e.target.value)}
+              onBlur={() => setPhoneTouched(true)}
+            />
+            {!phoneValid && <p className="mt-1.5 text-xs text-red-400">{SAUDI_PHONE_ERROR}</p>}
           </Field>
           <Field label="البريد الإلكتروني">
             <input className="field" placeholder="email@example.com" value={data.email} onChange={(e) => set("email", e.target.value)} />
@@ -95,16 +107,7 @@ export default function RegisterForm() {
 
       {step === 2 && (
         <div className="space-y-5">
-          <Field label="رابط الصورة الشخصية">
-            <input className="field" placeholder="https://..." value={data.avatar_url} onChange={(e) => set("avatar_url", e.target.value)} />
-          </Field>
-          {data.avatar_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={data.avatar_url} alt="معاينة" className="mx-auto h-28 w-28 rounded-full border border-line object-cover" />
-          )}
-          <p className="text-xs text-white/40">
-            يمكنك لاحقاً رفع الصور مباشرة بعد ربط التخزين. حالياً استخدم رابط صورة مباشر.
-          </p>
+          <AvatarUploader value={data.avatar_url} onChange={(url) => set("avatar_url", url)} />
         </div>
       )}
 

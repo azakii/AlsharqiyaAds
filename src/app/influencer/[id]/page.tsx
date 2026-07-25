@@ -43,7 +43,7 @@ export default async function InfluencerPage({ params }: { params: { id: string 
                 <h1 className="font-display text-3xl font-bold text-white sm:text-4xl">{inf.name}</h1>
                 {inf.verified && (
                   <span className="badge-gold">
-                    <BadgeCheck className="h-3 w-3" /> موثّق
+                    <BadgeCheck className="h-3 w-3" /> المنصة توصي به
                   </span>
                 )}
               </div>
@@ -88,9 +88,9 @@ export default async function InfluencerPage({ params }: { params: { id: string 
           </div>
         </div>
 
-        {/* Socials + gallery */}
-        <div className="grid gap-8 lg:grid-cols-[340px_1fr]">
-          <div className="card p-6">
+        {/* Socials */}
+        {socials.length > 0 && (
+          <div className="card mx-auto max-w-lg p-6">
             <h3 className="mb-4 border-r-2 border-gold pr-3 font-display text-lg text-gold">
               المنصات الاجتماعية
             </h3>
@@ -116,30 +116,7 @@ export default async function InfluencerPage({ params }: { params: { id: string 
               })}
             </div>
           </div>
-
-          <div>
-            <h3 className="mb-4 border-r-2 border-gold pr-3 font-display text-lg text-gold">
-              معرض الأعمال
-            </h3>
-            {inf.gallery.length === 0 ? (
-              <div className="card grid h-52 place-items-center text-sm text-muted">
-                لا يوجد أعمال منشورة بعد
-              </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {inf.gallery.map((src, i) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={i}
-                    src={src}
-                    alt={`عمل ${i + 1}`}
-                    className="h-48 w-full rounded-2xl border border-line object-cover"
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        )}
 
         <div className="mt-10 text-center">
           <Link href="/#celebrities" className="text-sm text-muted hover:text-gold">

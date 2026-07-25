@@ -13,7 +13,6 @@ export interface Influencer {
   clicks: number;
   ad_requests: number;
   avatar_url: string;
-  gallery: string[];
   verified: boolean;
   status: InfluencerStatus;
   socials: {

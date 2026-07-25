@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Loader2 } from "lucide-react";
 import { CITIES, CATEGORIES } from "@/lib/constants";
-import { adminCreateInfluencer } from "@/lib/actions";
+import { adminCreateInfluencer, adminUpdateInfluencer } from "@/lib/actions";
+import { isSaudiPhone, SAUDI_PHONE_ERROR } from "@/lib/validators";
+import AvatarUploader from "@/components/AvatarUploader";
+import type { Influencer } from "@/lib/types";
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "approved", label: "مقبول" },
@@ -12,21 +15,39 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "rejected", label: "مرفوض" },
 ];
 
-export default function AddInfluencerModal({ onClose }: { onClose: () => void }) {
+export default function AddInfluencerModal({
+  influencer,
+  onClose,
+}: {
+  influencer?: Influencer;
+  onClose: () => void;
+}) {
+  const isEdit = Boolean(influencer);
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(influencer?.name || "");
+  const [phone, setPhone] = useState(influencer?.phone || "");
+  const [avatarUrl, setAvatarUrl] = useState(influencer?.avatar_url || "");
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const canSave = name.trim() !== "" && phone.trim() !== "" && !loading;
+  const phoneValid = !phoneTouched || isSaudiPhone(phone);
+  const canSave = name.trim() !== "" && phone.trim() !== "" && isSaudiPhone(phone) && !loading;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!canSave) return;
+    setPhoneTouched(true);
+    if (!isSaudiPhone(phone)) return;
     setLoading(true);
     setError("");
-    const res = await adminCreateInfluencer(new FormData(e.currentTarget));
+
+    const fd = new FormData(e.currentTarget);
+    fd.set("avatar_url", avatarUrl);
+
+    const res = isEdit
+      ? await adminUpdateInfluencer(influencer!.id, fd)
+      : await adminCreateInfluencer(fd);
+
     setLoading(false);
     if (res.ok) {
       router.refresh();
@@ -46,7 +67,7 @@ export default function AddInfluencerModal({ onClose }: { onClose: () => void })
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white">إضافة مؤثر جديد</h2>
+          <h2 className="text-xl font-bold text-white">{isEdit ? "تعديل الملف الشخصي" : "إضافة مؤثر جديد"}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -58,33 +79,44 @@ export default function AddInfluencerModal({ onClose }: { onClose: () => void })
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
+          <AvatarUploader value={avatarUrl} onChange={setAvatarUrl} />
+
           <Row>
             <Field label="الاسم">
               <input name="name" value={name} onChange={(e) => setName(e.target.value)} className="modal-field" />
             </Field>
             <Field label="الجوال">
-              <input name="phone" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} className="modal-field" />
+              <input
+                name="phone"
+                dir="ltr"
+                placeholder="05xxxxxxxx"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                onBlur={() => setPhoneTouched(true)}
+                className={`modal-field ${!phoneValid ? "border-red-500/60" : ""}`}
+              />
+              {!phoneValid && <p className="mt-1 text-[11px] text-red-400">{SAUDI_PHONE_ERROR}</p>}
             </Field>
           </Row>
 
           <Row>
             <Field label="البريد">
-              <input name="email" dir="ltr" className="modal-field" />
+              <input name="email" dir="ltr" defaultValue={influencer?.email} className="modal-field" />
             </Field>
             <Field label="المتابعون">
-              <input name="followers" type="number" dir="ltr" className="modal-field" />
+              <input name="followers" type="number" dir="ltr" defaultValue={influencer?.followers} className="modal-field" />
             </Field>
           </Row>
 
           <Row>
             <Field label="المدينة">
-              <select name="city" className="modal-field">
+              <select name="city" defaultValue={influencer?.city || ""} className="modal-field">
                 <option value="">اختر...</option>
                 {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </Field>
             <Field label="التصنيف">
-              <select name="category" className="modal-field">
+              <select name="category" defaultValue={influencer?.category || ""} className="modal-field">
                 <option value="">اختر...</option>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -92,43 +124,49 @@ export default function AddInfluencerModal({ onClose }: { onClose: () => void })
           </Row>
 
           <Field label="نبذة">
-            <textarea name="bio" rows={3} className="modal-field resize-none" />
-          </Field>
-
-          <Field label="رابط الصورة الشخصية">
-            <input name="avatar_url" dir="ltr" className="modal-field" />
+            <textarea name="bio" rows={3} defaultValue={influencer?.bio} className="modal-field resize-none" />
           </Field>
 
           <Row>
             <Field label="Instagram">
-              <input name="instagram" dir="ltr" className="modal-field" />
+              <input name="instagram" dir="ltr" defaultValue={influencer?.socials.instagram} className="modal-field" />
             </Field>
             <Field label="Snapchat">
-              <input name="snapchat" dir="ltr" className="modal-field" />
+              <input name="snapchat" dir="ltr" defaultValue={influencer?.socials.snapchat} className="modal-field" />
             </Field>
           </Row>
 
           <Row>
             <Field label="TikTok">
-              <input name="tiktok" dir="ltr" className="modal-field" />
+              <input name="tiktok" dir="ltr" defaultValue={influencer?.socials.tiktok} className="modal-field" />
             </Field>
             <Field label="X">
-              <input name="x" dir="ltr" className="modal-field" />
+              <input name="x" dir="ltr" defaultValue={influencer?.socials.x} className="modal-field" />
             </Field>
           </Row>
 
           <Row>
             <Field label="WhatsApp">
-              <input name="whatsapp" dir="ltr" className="modal-field" />
+              <input name="whatsapp" dir="ltr" defaultValue={influencer?.socials.whatsapp} className="modal-field" />
             </Field>
             <Field label="الحالة">
-              <select name="status" defaultValue="approved" className="modal-field">
+              <select name="status" defaultValue={influencer?.status || "approved"} className="modal-field">
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
             </Field>
           </Row>
+
+          <label className="glass flex cursor-pointer items-center justify-between rounded-xl px-4 py-3">
+            <span className="text-sm text-white/80">المنصة توصي به (شارة التوصية)</span>
+            <input
+              type="checkbox"
+              name="verified"
+              defaultChecked={influencer?.verified ?? true}
+              className="h-5 w-5 accent-[rgb(212,160,23)]"
+            />
+          </label>
 
           {error && <p className="text-center text-sm text-red-400">{error}</p>}
 

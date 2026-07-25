@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, LogOut, Search, Plus, Settings,
+  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, LogOut, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle,
 } from "lucide-react";
 import { formatFollowers } from "@/lib/constants";
 import {
@@ -15,6 +15,8 @@ import type { Influencer, AdRequest } from "@/lib/types";
 import type { Stats } from "@/lib/data";
 import type { SiteSettings } from "@/lib/settings";
 
+type ActionResult = { ok: boolean; message?: string };
+
 const STATUS_LABEL: Record<string, string> = {
   pending: "قيد المراجعة",
   approved: "مقبول",
@@ -22,25 +24,33 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function AdminDashboard({
-  influencers, adRequests, stats, settings, demo,
+  influencers, adRequests, stats, settings, demo, missingServiceRole,
 }: {
   influencers: Influencer[];
   adRequests: AdRequest[];
   stats: Stats;
   settings: SiteSettings;
   demo: boolean;
+  missingServiceRole: boolean;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"influencers" | "ads" | "settings">("influencers");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [editingInfluencer, setEditingInfluencer] = useState<Influencer | null>(null);
+  const [actionError, setActionError] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  const run = (fn: () => Promise<unknown>) =>
+  const run = (fn: () => Promise<ActionResult>) =>
     startTransition(async () => {
-      await fn();
-      router.refresh();
+      const res = await fn();
+      if (!res.ok) {
+        setActionError(res.message || "حدث خطأ غير متوقع، حاول مرة أخرى.");
+      } else {
+        setActionError("");
+        router.refresh();
+      }
     });
 
   const filtered = influencers.filter((i) => {
@@ -61,18 +71,40 @@ export default function AdminDashboard({
           <button onClick={() => setShowAdd(true)} className="btn-gold">
             <Plus className="h-4 w-4" /> إضافة مؤثر
           </button>
-          <button onClick={() => run(async () => { await logout(); })} className="btn-outline">
+          <button onClick={() => run(() => logout())} className="btn-outline">
             <LogOut className="h-4 w-4" /> خروج
           </button>
         </div>
       </div>
 
-      {showAdd && <AddInfluencerModal onClose={() => setShowAdd(false)} />}
+      {(showAdd || editingInfluencer) && (
+        <AddInfluencerModal
+          influencer={editingInfluencer ?? undefined}
+          onClose={() => {
+            setShowAdd(false);
+            setEditingInfluencer(null);
+          }}
+        />
+      )}
 
       {demo && (
         <p className="mt-6 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-center text-xs text-gold">
           وضع تجريبي — لم يتم ربط قاعدة البيانات بعد. الإجراءات لن تُحفظ حتى تضيف مفاتيح Supabase.
         </p>
+      )}
+
+      {!demo && missingServiceRole && (
+        <p className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-xs text-red-300">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          مفتاح SUPABASE_SERVICE_ROLE_KEY غير مضاف — القبول/الرفض/الحذف/التعديل ورفع الصور لن تعمل حتى تضيفه في إعدادات البيئة على Vercel.
+        </p>
+      )}
+
+      {actionError && (
+        <div className="mt-6 flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
+          <button onClick={() => setActionError("")} className="text-red-300/70 hover:text-red-200">✕</button>
+          <span className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 flex-shrink-0" /> {actionError}</span>
+        </div>
       )}
 
       {/* Stats */}
@@ -84,15 +116,15 @@ export default function AdminDashboard({
       </div>
 
       {/* Tabs */}
-      <div className="mt-8 flex flex-wrap justify-end gap-2">
-        <TabBtn active={tab === "settings"} onClick={() => setTab("settings")}>
-          <Settings className="h-3.5 w-3.5" /> إعدادات الموقع
+      <div className="mt-8 flex flex-wrap justify-start gap-2">
+        <TabBtn active={tab === "influencers"} onClick={() => setTab("influencers")}>
+          المؤثرون <Badge>{influencers.length}</Badge>
         </TabBtn>
         <TabBtn active={tab === "ads"} onClick={() => setTab("ads")}>
           طلبات الإعلان <Badge>{adRequests.length}</Badge>
         </TabBtn>
-        <TabBtn active={tab === "influencers"} onClick={() => setTab("influencers")}>
-          المؤثرون <Badge>{influencers.length}</Badge>
+        <TabBtn active={tab === "settings"} onClick={() => setTab("settings")}>
+          <Settings className="h-3.5 w-3.5" /> إعدادات الموقع
         </TabBtn>
       </div>
 
@@ -125,9 +157,14 @@ export default function AdminDashboard({
                 />
 
                 <div className="min-w-0 flex-1 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <StatusPill status={inf.status} />
+                  <div className="flex flex-wrap items-center justify-start gap-2">
                     <span className="font-semibold text-white">{inf.name}</span>
+                    <StatusPill status={inf.status} />
+                    {inf.verified && (
+                      <span className="flex items-center gap-1 rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 text-[10px] text-gold">
+                        <BadgeCheck className="h-3 w-3" /> المنصة توصي به
+                      </span>
+                    )}
                   </div>
                   <div className="mt-1 text-xs text-white/45">
                     {inf.city} • {inf.category} • {formatFollowers(inf.followers)} متابع
@@ -135,6 +172,12 @@ export default function AdminDashboard({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setEditingInfluencer(inf)}
+                    className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> تعديل
+                  </button>
                   <button
                     onClick={() => run(() => setInfluencerStatus(inf.id, "approved"))}
                     className="inline-flex items-center gap-1 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs text-green-400 hover:bg-green-500/25"
@@ -150,7 +193,7 @@ export default function AdminDashboard({
                     <X className="h-3.5 w-3.5" /> رفض
                   </button>
                   <button
-                    onClick={() => run(() => deleteInfluencer(inf.id))}
+                    onClick={() => { if (confirm(`هل تريد حذف ${inf.name}؟`)) run(() => deleteInfluencer(inf.id)); }}
                     className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20"
                     disabled={isPending}
                   >
@@ -168,7 +211,7 @@ export default function AdminDashboard({
             <div key={r.id} className="card p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="text-right">
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center justify-start gap-2">
                     <StatusPill status={r.status} />
                     <span className="font-semibold text-white">{r.company_name}</span>
                   </div>
@@ -188,7 +231,7 @@ export default function AdminDashboard({
                 <button onClick={() => run(() => setAdRequestStatus(r.id, "rejected"))} className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10" disabled={isPending}>
                   <X className="h-3.5 w-3.5" /> رفض
                 </button>
-                <button onClick={() => run(() => deleteAdRequest(r.id))} className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20" disabled={isPending}>
+                <button onClick={() => { if (confirm(`هل تريد حذف طلب ${r.company_name}؟`)) run(() => deleteAdRequest(r.id)); }} className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20" disabled={isPending}>
                   <Trash2 className="h-3.5 w-3.5" /> حذف
                 </button>
               </div>
@@ -203,7 +246,7 @@ export default function AdminDashboard({
 
 function StatCard({ icon, value, label }: { icon: React.ReactNode; value: number; label: string }) {
   return (
-    <div className="card flex items-center justify-between p-5">
+    <div className="card flex items-center p-5 gap-3">
       <span className="grid h-11 w-11 place-items-center rounded-full bg-gold/10 text-gold">{icon}</span>
       <div className="text-right">
         <div className="font-display text-2xl font-bold text-white">{value}</div>

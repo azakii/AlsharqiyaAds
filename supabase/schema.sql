@@ -19,7 +19,6 @@ create table if not exists public.influencers (
   clicks        integer default 0,
   ad_requests   integer default 0,
   avatar_url    text,
-  gallery       jsonb default '[]'::jsonb,
   verified      boolean default false,
   status        text default 'pending' check (status in ('pending','approved','rejected')),
   socials       jsonb default '{}'::jsonb,
@@ -58,6 +57,7 @@ create table if not exists public.site_settings (
   contact_phone     text,
   contact_email     text,
   contact_location  text,
+  support_whatsapp  text,
   color_bg          text,
   color_gold        text,
   color_gold_light  text,
@@ -65,6 +65,10 @@ create table if not exists public.site_settings (
   updated_at        timestamptz default now(),
   constraint single_row check (id = 1)
 );
+
+-- ترقية آمنة لقاعدة بيانات سبق إنشاؤها (لا تؤثر إن كانت الجداول جديدة)
+alter table public.site_settings add column if not exists support_whatsapp text;
+alter table public.influencers drop column if exists gallery;
 
 -- تفعيل Row Level Security
 alter table public.influencers enable row level security;

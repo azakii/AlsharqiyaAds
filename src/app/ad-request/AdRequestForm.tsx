@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import Stepper from "@/components/Stepper";
 import { CITIES, CATEGORIES } from "@/lib/constants";
 import { submitAdRequest } from "@/lib/actions";
+import { isSaudiPhone, SAUDI_PHONE_ERROR } from "@/lib/validators";
 import type { Influencer } from "@/lib/types";
 
 const STEPS = ["بيانات الشركة", "تفاصيل الإعلان", "الميزانية والمؤثر"];
@@ -18,10 +19,12 @@ const empty = {
 export default function AdRequestForm({ influencers }: { influencers: Influencer[] }) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState(empty);
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const set = (k: keyof typeof empty, v: string) => setData((d) => ({ ...d, [k]: v }));
+  const phoneValid = !phoneTouched || isSaudiPhone(data.phone);
 
   async function handleSubmit() {
     setLoading(true);
@@ -46,8 +49,8 @@ export default function AdRequestForm({ influencers }: { influencers: Influencer
   }
 
   const canNext =
-    step === 0 ? data.company_name && data.contact_name && data.phone :
-    step === 1 ? data.category && data.details :
+    step === 0 ? Boolean(data.company_name && data.contact_name && data.phone && isSaudiPhone(data.phone)) :
+    step === 1 ? Boolean(data.category && data.details) :
     true;
 
   return (
@@ -63,7 +66,15 @@ export default function AdRequestForm({ influencers }: { influencers: Influencer
             <input className="field" placeholder="الاسم الكامل" value={data.contact_name} onChange={(e) => set("contact_name", e.target.value)} />
           </Field>
           <Field label="رقم الجوال">
-            <input className="field" placeholder="05xxxxxxxx" value={data.phone} onChange={(e) => set("phone", e.target.value)} />
+            <input
+              className={`field ${!phoneValid ? "border-red-500/60" : ""}`}
+              placeholder="05xxxxxxxx"
+              dir="ltr"
+              value={data.phone}
+              onChange={(e) => set("phone", e.target.value)}
+              onBlur={() => setPhoneTouched(true)}
+            />
+            {!phoneValid && <p className="mt-1.5 text-xs text-red-400">{SAUDI_PHONE_ERROR}</p>}
           </Field>
           <Field label="البريد الإلكتروني">
             <input className="field" placeholder="email@example.com" value={data.email} onChange={(e) => set("email", e.target.value)} />

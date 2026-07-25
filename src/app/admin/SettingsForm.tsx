@@ -43,6 +43,12 @@ export default function SettingsForm({ initial }: { initial: SiteSettings }) {
         <Text name="contact_phone" label="رقم الهاتف" def={initial.contact_phone} />
         <Text name="contact_email" label="البريد الإلكتروني" def={initial.contact_email} />
         <Text name="contact_location" label="الموقع / العنوان" def={initial.contact_location} full />
+        <Text
+          name="support_whatsapp"
+          label="رقم واتساب الدعم الفني (بصيغة دولية، مثال: 966500000000)"
+          def={initial.support_whatsapp}
+          full
+        />
       </Group>
 
       <Group title="الألوان">

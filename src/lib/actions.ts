@@ -5,14 +5,18 @@ import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin, supabaseEnabled } from "./supabase";
 import { adminCreds, makeToken, ADMIN_COOKIE, isAdmin } from "./auth";
 import { DEFAULT_SETTINGS, type SiteSettings } from "./settings";
+import { isSaudiPhone, SAUDI_PHONE_ERROR } from "./validators";
 import type { InfluencerStatus, AdRequestStatus } from "./types";
 
 // ---------- Public submissions ----------
 
 export async function submitInfluencer(formData: FormData) {
+  const phone = String(formData.get("phone") || "");
+  if (!isSaudiPhone(phone)) return { ok: false, message: SAUDI_PHONE_ERROR };
+
   const payload = {
     name: String(formData.get("name") || ""),
-    phone: String(formData.get("phone") || ""),
+    phone,
     email: String(formData.get("email") || ""),
     city: String(formData.get("city") || ""),
     category: String(formData.get("category") || ""),
@@ -31,24 +35,26 @@ export async function submitInfluencer(formData: FormData) {
     views: 0,
     clicks: 0,
     ad_requests: 0,
-    gallery: [],
   };
 
   if (!supabaseEnabled) {
     return { ok: true, demo: true, message: "تم استلام الطلب (وضع تجريبي — لم يتم ربط قاعدة البيانات بعد)." };
   }
   const sb = getSupabaseAdmin();
-  if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة." };
+  if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة حالياً (مفتاح الخدمة غير مُعد)." };
   const { error } = await sb.from("influencers").insert(payload);
   if (error) return { ok: false, message: error.message };
   return { ok: true, message: "تم إرسال طلب التسجيل بنجاح، سيتم مراجعته قريباً." };
 }
 
 export async function submitAdRequest(formData: FormData) {
+  const phone = String(formData.get("phone") || "");
+  if (!isSaudiPhone(phone)) return { ok: false, message: SAUDI_PHONE_ERROR };
+
   const payload = {
     company_name: String(formData.get("company_name") || ""),
     contact_name: String(formData.get("contact_name") || ""),
-    phone: String(formData.get("phone") || ""),
+    phone,
     email: String(formData.get("email") || ""),
     category: String(formData.get("category") || ""),
     city: String(formData.get("city") || ""),
@@ -62,7 +68,7 @@ export async function submitAdRequest(formData: FormData) {
     return { ok: true, demo: true, message: "تم استلام طلب الإعلان (وضع تجريبي — لم يتم ربط قاعدة البيانات بعد)." };
   }
   const sb = getSupabaseAdmin();
-  if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة." };
+  if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة حالياً (مفتاح الخدمة غير مُعد)." };
   const { error } = await sb.from("ad_requests").insert(payload);
   if (error) return { ok: false, message: error.message };
   return { ok: true, message: "تم إرسال طلب الإعلان بنجاح، سنتواصل معك قريباً." };
@@ -92,28 +98,54 @@ export async function logout() {
 }
 
 // ---------- Admin mutations ----------
+// Every mutation below requires the SUPABASE_SERVICE_ROLE_KEY (getSupabaseAdmin only returns a
+// client when it's set — see supabase.ts). Without it, RLS blocks anon writes with zero rows
+// affected and NO error, which used to make "accept/reject/delete" silently do nothing. Every
+// action here now returns an explicit, visible error instead of pretending to succeed.
 
 async function guard() {
   if (!isAdmin()) throw new Error("unauthorized");
 }
 
+function noServiceRoleError() {
+  return {
+    ok: false,
+    message: "الإجراء فشل: مفتاح SUPABASE_SERVICE_ROLE_KEY غير مضاف في إعدادات البيئة (Vercel). أضفه ثم أعد النشر.",
+  };
+}
+
 export async function setInfluencerStatus(id: string, status: InfluencerStatus) {
   await guard();
-  if (supabaseEnabled) {
-    const sb = getSupabaseAdmin();
-    await sb?.from("influencers").update({ status, verified: status === "approved" }).eq("id", id);
-  }
+  if (!supabaseEnabled) return { ok: true, demo: true };
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data, error } = await sb.from("influencers").update({ status }).eq("id", id).select("id");
+  if (error) return { ok: false, message: error.message };
+  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر أو لا يوجد صلاحية للتعديل." };
+
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true };
 }
 
-/** Admin-only: add an influencer directly from the dashboard (skips the public review queue). */
-export async function adminCreateInfluencer(formData: FormData) {
+export async function setVerified(id: string, verified: boolean) {
   await guard();
+  if (!supabaseEnabled) return { ok: true, demo: true };
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
 
-  const status = (String(formData.get("status") || "approved") as InfluencerStatus) || "approved";
-  const payload = {
+  const { data, error } = await sb.from("influencers").update({ verified }).eq("id", id).select("id");
+  if (error) return { ok: false, message: error.message };
+  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+function influencerPayloadFromForm(formData: FormData) {
+  return {
     name: String(formData.get("name") || ""),
     phone: String(formData.get("phone") || ""),
     email: String(formData.get("email") || ""),
@@ -129,36 +161,78 @@ export async function adminCreateInfluencer(formData: FormData) {
       whatsapp: String(formData.get("whatsapp") || ""),
       snapchat: String(formData.get("snapchat") || ""),
     },
-    verified: status === "approved",
-    status,
-    views: 0,
-    clicks: 0,
-    ad_requests: 0,
-    gallery: [],
+    verified: formData.get("verified") === "on" || formData.get("verified") === "true",
+    status: (String(formData.get("status") || "approved") as InfluencerStatus) || "approved",
   };
+}
+
+/** Admin-only: add an influencer directly from the dashboard (skips the public review queue). */
+export async function adminCreateInfluencer(formData: FormData) {
+  await guard();
+  const payload = influencerPayloadFromForm(formData);
 
   if (!payload.name || !payload.phone) {
     return { ok: false, message: "الاسم ورقم الجوال مطلوبان." };
+  }
+  if (!isSaudiPhone(payload.phone)) {
+    return { ok: false, message: SAUDI_PHONE_ERROR };
   }
 
   if (!supabaseEnabled) {
     return { ok: true, demo: true, message: "تمت الإضافة (وضع تجريبي — فعّل Supabase لحفظ البيانات فعلياً)." };
   }
   const sb = getSupabaseAdmin();
-  if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة." };
-  const { error } = await sb.from("influencers").insert(payload);
+  if (!sb) return noServiceRoleError();
+
+  const { error } = await sb.from("influencers").insert({
+    ...payload,
+    views: 0,
+    clicks: 0,
+    ad_requests: 0,
+  });
   if (error) return { ok: false, message: error.message };
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true, message: "تمت إضافة المؤثر بنجاح." };
 }
 
+/** Admin-only: edit an existing influencer's profile. */
+export async function adminUpdateInfluencer(id: string, formData: FormData) {
+  await guard();
+  const payload = influencerPayloadFromForm(formData);
+
+  if (!payload.name || !payload.phone) {
+    return { ok: false, message: "الاسم ورقم الجوال مطلوبان." };
+  }
+  if (!isSaudiPhone(payload.phone)) {
+    return { ok: false, message: SAUDI_PHONE_ERROR };
+  }
+
+  if (!supabaseEnabled) {
+    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — فعّل Supabase لحفظ البيانات فعلياً)." };
+  }
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data, error } = await sb.from("influencers").update(payload).eq("id", id).select("id");
+  if (error) return { ok: false, message: error.message };
+  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true, message: "تم حفظ التعديلات بنجاح." };
+}
+
 export async function deleteInfluencer(id: string) {
   await guard();
-  if (supabaseEnabled) {
-    const sb = getSupabaseAdmin();
-    await sb?.from("influencers").delete().eq("id", id);
-  }
+  if (!supabaseEnabled) return { ok: true, demo: true };
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data, error } = await sb.from("influencers").delete().eq("id", id).select("id");
+  if (error) return { ok: false, message: error.message };
+  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر أو لا يوجد صلاحية للحذف." };
+
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true };
@@ -166,20 +240,28 @@ export async function deleteInfluencer(id: string) {
 
 export async function setAdRequestStatus(id: string, status: AdRequestStatus) {
   await guard();
-  if (supabaseEnabled) {
-    const sb = getSupabaseAdmin();
-    await sb?.from("ad_requests").update({ status }).eq("id", id);
-  }
+  if (!supabaseEnabled) return { ok: true, demo: true };
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data, error } = await sb.from("ad_requests").update({ status }).eq("id", id).select("id");
+  if (error) return { ok: false, message: error.message };
+  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على الطلب." };
+
   revalidatePath("/admin");
   return { ok: true };
 }
 
 export async function deleteAdRequest(id: string) {
   await guard();
-  if (supabaseEnabled) {
-    const sb = getSupabaseAdmin();
-    await sb?.from("ad_requests").delete().eq("id", id);
-  }
+  if (!supabaseEnabled) return { ok: true, demo: true };
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data, error } = await sb.from("ad_requests").delete().eq("id", id).select("id");
+  if (error) return { ok: false, message: error.message };
+  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على الطلب أو لا يوجد صلاحية للحذف." };
+
   revalidatePath("/admin");
   return { ok: true };
 }
@@ -197,7 +279,8 @@ export async function saveSettings(formData: FormData) {
     return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — فعّل Supabase لحفظ التغييرات فعلياً)." };
   }
   const sb = getSupabaseAdmin();
-  if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة." };
+  if (!sb) return noServiceRoleError();
+
   const { error } = await sb.from("site_settings").upsert({ ...payload, id: 1 });
   if (error) return { ok: false, message: error.message };
   revalidatePath("/", "layout");
