@@ -96,7 +96,7 @@ export default function AdminDashboard({
       {!demo && missingServiceRole && (
         <p className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-xs text-red-300">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-          مفتاح SUPABASE_SERVICE_ROLE_KEY غير مضاف — القبول/الرفض/الحذف/التعديل ورفع الصور لن تعمل حتى تضيفه في إعدادات البيئة على Vercel.
+          مفتاح SUPABASE_SERVICE_ROLE_KEY غير مضاف — القبول/الرفض/الحذف/التعديل ورفع الصور لن تعمل، وحتى عرض المؤثرين غير الموافق عليهم لن يظهر، حتى تضيف المفتاح في إعدادات البيئة على Vercel.
         </p>
       )}
 
