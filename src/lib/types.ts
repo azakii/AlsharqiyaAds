@@ -22,6 +22,7 @@ export interface Influencer {
     whatsapp?: string;
     snapchat?: string;
   };
+  auth_user_id?: string | null;
   created_at?: string;
 }
 

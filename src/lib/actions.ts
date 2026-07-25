@@ -2,8 +2,9 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { getSupabaseAdmin, supabaseEnabled } from "./supabase";
+import { getSupabase, getSupabaseAdmin, supabaseEnabled } from "./supabase";
 import { adminCreds, makeToken, ADMIN_COOKIE, isAdmin } from "./auth";
+import { makeUserToken, currentInfluencerId, USER_COOKIE } from "./userAuth";
 import { DEFAULT_SETTINGS, type SiteSettings } from "./settings";
 import { isSaudiPhone, SAUDI_PHONE_ERROR } from "./validators";
 import type { InfluencerStatus, AdRequestStatus } from "./types";
@@ -14,10 +15,15 @@ export async function submitInfluencer(formData: FormData) {
   const phone = String(formData.get("phone") || "");
   if (!isSaudiPhone(phone)) return { ok: false, message: SAUDI_PHONE_ERROR };
 
-  const payload = {
+  const email = String(formData.get("email") || "").trim();
+  const password = String(formData.get("password") || "");
+  if (!email) return { ok: false, message: "البريد الإلكتروني مطلوب لإنشاء حساب الدخول." };
+  if (password.length < 6) return { ok: false, message: "كلمة المرور يجب ألا تقل عن 6 أحرف." };
+
+  const basePayload = {
     name: String(formData.get("name") || ""),
     phone,
-    email: String(formData.get("email") || ""),
+    email,
     city: String(formData.get("city") || ""),
     category: String(formData.get("category") || ""),
     bio: String(formData.get("bio") || ""),
@@ -42,9 +48,33 @@ export async function submitInfluencer(formData: FormData) {
   }
   const sb = getSupabaseAdmin();
   if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة حالياً (مفتاح الخدمة غير مُعد)." };
+
+  // ننشئ حساب الدخول (Supabase Auth) فور التسجيل حتى تكون كلمة المرور مُشفّرة من قِبل
+  // سبابيز مباشرة (بدون تخزينها عندنا)، لكن تسجيل الدخول الفعلي يبقى مرفوضاً من السيرفر
+  // (loginInfluencer) حتى توافق الإدارة على الطلب — راجع الملاحظة في schema.sql.
+  const { data: authData, error: authError } = await sb.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (authError || !authData.user) {
+    const msg = authError?.message?.includes("already registered")
+      ? "هذا البريد الإلكتروني مسجّل بالفعل، جرّب تسجيل الدخول بدلاً من ذلك."
+      : authError?.message || "تعذر إنشاء حساب الدخول.";
+    return { ok: false, message: msg };
+  }
+
+  const payload = { ...basePayload, auth_user_id: authData.user.id };
   const { error } = await sb.from("influencers").insert(payload);
-  if (error) return { ok: false, message: error.message };
-  return { ok: true, message: "تم إرسال طلب التسجيل بنجاح، سيتم مراجعته قريباً." };
+  if (error) {
+    // تراجع: احذف حساب الدخول اللي اتعمل عشان يقدر يسجل تاني بنفس البريد
+    await sb.auth.admin.deleteUser(authData.user.id);
+    return { ok: false, message: error.message };
+  }
+  return {
+    ok: true,
+    message: "تم إرسال طلب التسجيل بنجاح. بعد موافقة الإدارة، تقدر تسجّل الدخول بنفس البريد الإلكتروني وكلمة المرور.",
+  };
 }
 
 export async function submitAdRequest(formData: FormData) {
@@ -94,6 +124,55 @@ export async function login(formData: FormData) {
 
 export async function logout() {
   cookies().delete(ADMIN_COOKIE);
+  return { ok: true };
+}
+
+// ---------- Influencer auth (separate from admin auth above) ----------
+
+export async function loginInfluencer(formData: FormData) {
+  const email = String(formData.get("email") || "").trim();
+  const password = String(formData.get("password") || "");
+  if (!email || !password) return { ok: false, message: "البريد الإلكتروني وكلمة المرور مطلوبان." };
+
+  if (!supabaseEnabled) {
+    return { ok: false, message: "تسجيل الدخول غير متاح حالياً (لم يتم ربط قاعدة البيانات بعد)." };
+  }
+
+  const anon = getSupabase();
+  if (!anon) return { ok: false, message: "تعذر الاتصال بالخادم." };
+  const { data: authData, error: authError } = await anon.auth.signInWithPassword({ email, password });
+  if (authError || !authData.user) {
+    return { ok: false, message: "البريد الإلكتروني أو كلمة المرور غير صحيحة." };
+  }
+
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data: inf } = await sb
+    .from("influencers")
+    .select("id,status")
+    .eq("auth_user_id", authData.user.id)
+    .maybeSingle();
+
+  if (!inf) return { ok: false, message: "لم يتم العثور على ملف مؤثر مرتبط بهذا الحساب." };
+  if (inf.status !== "approved") {
+    return {
+      ok: false,
+      message: "حسابك قيد المراجعة من الإدارة حالياً. سيتم تفعيل الدخول فور الموافقة على طلبك.",
+    };
+  }
+
+  cookies().set(USER_COOKIE, makeUserToken(inf.id), {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+  return { ok: true };
+}
+
+export async function logoutInfluencer() {
+  cookies().delete(USER_COOKIE);
   return { ok: true };
 }
 
@@ -219,6 +298,51 @@ export async function adminUpdateInfluencer(id: string, formData: FormData) {
   if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
 
   revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true, message: "تم حفظ التعديلات بنجاح." };
+}
+
+/** Fields an influencer may edit on their own profile — status/verified stay admin-only. */
+function selfPayloadFromForm(formData: FormData) {
+  return {
+    name: String(formData.get("name") || ""),
+    phone: String(formData.get("phone") || ""),
+    email: String(formData.get("email") || ""),
+    city: String(formData.get("city") || ""),
+    category: String(formData.get("category") || ""),
+    bio: String(formData.get("bio") || ""),
+    followers: Number(formData.get("followers") || 0),
+    avatar_url: String(formData.get("avatar_url") || ""),
+    socials: {
+      instagram: String(formData.get("instagram") || ""),
+      tiktok: String(formData.get("tiktok") || ""),
+      x: String(formData.get("x") || ""),
+      whatsapp: String(formData.get("whatsapp") || ""),
+      snapchat: String(formData.get("snapchat") || ""),
+    },
+  };
+}
+
+/** Influencer-only: edit their own profile. Requires a valid sq_user session cookie. */
+export async function updateOwnProfile(formData: FormData) {
+  const uid = currentInfluencerId();
+  if (!uid) return { ok: false, message: "يجب تسجيل الدخول أولاً." };
+
+  const payload = selfPayloadFromForm(formData);
+  if (!payload.name || !payload.phone) return { ok: false, message: "الاسم ورقم الجوال مطلوبان." };
+  if (!isSaudiPhone(payload.phone)) return { ok: false, message: SAUDI_PHONE_ERROR };
+
+  if (!supabaseEnabled) {
+    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — فعّل Supabase لحفظ البيانات فعلياً)." };
+  }
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data, error } = await sb.from("influencers").update(payload).eq("id", uid).select("id");
+  if (error) return { ok: false, message: error.message };
+  if (!data || data.length === 0) return { ok: false, message: "تعذر العثور على ملفك الشخصي." };
+
+  revalidatePath("/account");
   revalidatePath("/");
   return { ok: true, message: "تم حفظ التعديلات بنجاح." };
 }

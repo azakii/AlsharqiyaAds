@@ -4,6 +4,9 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SupportWhatsapp from "@/components/SupportWhatsapp";
 import { getSettings } from "@/lib/settings";
+import { currentInfluencerId } from "@/lib/userAuth";
+import { getInfluencerById } from "@/lib/data";
+import type { NavUser } from "@/components/Navbar";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +33,14 @@ function hexToTriplet(hex: string): string | null {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const s = await getSettings();
+
+  const uid = currentInfluencerId();
+  let navUser: NavUser | null = null;
+  if (uid) {
+    const inf = await getInfluencerById(uid);
+    if (inf) navUser = { id: inf.id, name: inf.name, avatar_url: inf.avatar_url, followers: inf.followers };
+  }
+
   const vars: string[] = [];
   const map: Record<string, string> = {
     "--c-bg": s.color_bg,
@@ -55,7 +66,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <style dangerouslySetInnerHTML={{ __html: themeVars }} />
       </head>
       <body className="min-h-screen bg-bg">
-        <Navbar settings={s} />
+        <Navbar settings={s} user={navUser} />
         <main className="min-h-[70vh]">{children}</main>
         <Footer settings={s} />
         <SupportWhatsapp number={s.support_whatsapp} />

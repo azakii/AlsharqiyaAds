@@ -11,7 +11,7 @@ import { isSaudiPhone, SAUDI_PHONE_ERROR } from "@/lib/validators";
 const STEPS = ["البيانات الأساسية", "التفاصيل والمحتوى", "الصورة الشخصية", "روابط التواصل"];
 
 const empty = {
-  name: "", phone: "", email: "", city: "",
+  name: "", phone: "", email: "", password: "", city: "",
   category: "", bio: "", followers: "",
   avatar_url: "",
   instagram: "", tiktok: "", x: "", whatsapp: "", snapchat: "",
@@ -46,18 +46,23 @@ export default function RegisterForm() {
           {result.ok ? "تم بنجاح" : "حدث خطأ"}
         </h3>
         <p className="mt-3 text-sm text-white/60">{result.message}</p>
-        <a href="/" className="btn-outline mt-6">العودة للرئيسية</a>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <a href="/" className="btn-outline">العودة للرئيسية</a>
+          {result.ok && <a href="/login" className="btn-gold">تسجيل الدخول</a>}
+        </div>
       </div>
     );
   }
 
   const canNext =
-    step === 0 ? Boolean(data.name && data.phone && data.city && isSaudiPhone(data.phone)) :
+    step === 0 ? Boolean(
+      data.name && data.phone && data.city && isSaudiPhone(data.phone) && data.email && data.password.length >= 6
+    ) :
     step === 1 ? Boolean(data.category && data.bio) :
     true;
 
   return (
-    <div className="card mx-auto max-w-2xl p-8">
+    <div className="card mx-auto max-w-3xl p-8">
       <Stepper steps={STEPS} current={step} />
 
       {step === 0 && (
@@ -77,7 +82,25 @@ export default function RegisterForm() {
             {!phoneValid && <p className="mt-1.5 text-xs text-red-400">{SAUDI_PHONE_ERROR}</p>}
           </Field>
           <Field label="البريد الإلكتروني">
-            <input className="field" placeholder="email@example.com" value={data.email} onChange={(e) => set("email", e.target.value)} />
+            <input
+              type="email"
+              className="field"
+              dir="ltr"
+              placeholder="email@example.com"
+              value={data.email}
+              onChange={(e) => set("email", e.target.value)}
+            />
+            <p className="mt-1.5 text-xs text-white/35">هيبقى وسيلة تسجيل دخولك بعد ما تتوافق الإدارة على طلبك.</p>
+          </Field>
+          <Field label="كلمة المرور">
+            <input
+              type="password"
+              className="field"
+              dir="ltr"
+              placeholder="6 أحرف على الأقل"
+              value={data.password}
+              onChange={(e) => set("password", e.target.value)}
+            />
           </Field>
           <Field label="المدينة">
             <select className="field" value={data.city} onChange={(e) => set("city", e.target.value)}>

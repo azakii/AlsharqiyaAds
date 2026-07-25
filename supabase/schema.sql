@@ -22,6 +22,7 @@ create table if not exists public.influencers (
   verified      boolean default false,
   status        text default 'pending' check (status in ('pending','approved','rejected')),
   socials       jsonb default '{}'::jsonb,
+  auth_user_id  uuid references auth.users(id) on delete set null,
   created_at    timestamptz default now()
 );
 
@@ -69,6 +70,8 @@ create table if not exists public.site_settings (
 -- ترقية آمنة لقاعدة بيانات سبق إنشاؤها (لا تؤثر إن كانت الجداول جديدة)
 alter table public.site_settings add column if not exists support_whatsapp text;
 alter table public.influencers drop column if exists gallery;
+alter table public.influencers add column if not exists auth_user_id uuid references auth.users(id) on delete set null;
+create index if not exists influencers_auth_user_id_idx on public.influencers(auth_user_id);
 
 -- تفعيل Row Level Security
 alter table public.influencers enable row level security;
@@ -97,6 +100,11 @@ create policy "anyone can submit ad request"
 
 -- ملاحظة: عمليات الأدمن (قراءة الكل / تعديل / حذف) تتم عبر مفتاح الخدمة
 -- (SUPABASE_SERVICE_ROLE_KEY) من السيرفر، وهو يتجاوز سياسات RLS.
+
+-- ملاحظة عن حسابات المؤثرين: يتم إنشاء حساب Supabase Auth (auth.users) وربطه بـ
+-- influencers.auth_user_id فور التسجيل، لكن تسجيل الدخول الفعلي يُمنع من السيرفر
+-- (loginInfluencer في actions.ts) ما لم يكن status = 'approved' — أي أن الحساب لا
+-- يعمل فعلياً إلا بعد موافقة الإدارة، رغم أن بيانات الدخول تُنشأ مسبقاً.
 
 -- تخزين الصور: أنشئ Bucket عام باسم "media" من Storage في اللوحة
 insert into storage.buckets (id, name, public)

@@ -54,7 +54,7 @@ export default function AdRequestForm({ influencers }: { influencers: Influencer
     true;
 
   return (
-    <div className="card mx-auto max-w-2xl p-8">
+    <div className="card mx-auto max-w-3xl p-8">
       <Stepper steps={STEPS} current={step} />
 
       {step === 0 && (
