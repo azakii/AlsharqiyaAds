@@ -6,7 +6,7 @@ export default function Stepper({
   current: number;
 }) {
   return (
-    <div className="mb-10 flex flex-wrap items-center justify-center gap-2">
+    <div className="mb-10 flex flex-wrap items-center justify-center gap-2 text-center">
       {steps.map((label, i) => {
         const active = i === current;
         const done = i < current;
