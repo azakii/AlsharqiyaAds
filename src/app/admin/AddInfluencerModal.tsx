@@ -28,18 +28,32 @@ export default function AddInfluencerModal({
   const [phone, setPhone] = useState(influencer?.phone || "");
   const [avatarUrl, setAvatarUrl] = useState(influencer?.avatar_url || "");
   const [phoneTouched, setPhoneTouched] = useState(false);
+  const [nameTouched, setNameTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const phoneValid = !phoneTouched || isSaudiPhone(phone);
-  const canSave = name.trim() !== "" && phone.trim() !== "" && isSaudiPhone(phone) && !loading;
+  const nameValid = !nameTouched || name.trim() !== "";
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setNameTouched(true);
     setPhoneTouched(true);
-    if (!isSaudiPhone(phone)) return;
-    setLoading(true);
     setError("");
+
+    // نتحقق هنا (مش بتعطيل الزر) عشان الزر يفضل قابل للضغط دايماً ويوضح سبب الرفض
+    // بدل ما يفضل معطّل بصمت — ده كان السبب في إن زر الحفظ "مايفعلش" مع مؤثرين
+    // مسجّلين من غير رقم جوال (زي بيانات البذر الأولية في schema.sql).
+    if (!name.trim()) {
+      setError("الاسم مطلوب.");
+      return;
+    }
+    if (!isSaudiPhone(phone)) {
+      setError(SAUDI_PHONE_ERROR);
+      return;
+    }
+
+    setLoading(true);
 
     const fd = new FormData(e.currentTarget);
     fd.set("avatar_url", avatarUrl);
@@ -83,7 +97,14 @@ export default function AddInfluencerModal({
 
           <Row>
             <Field label="الاسم">
-              <input name="name" value={name} onChange={(e) => setName(e.target.value)} className="modal-field" />
+              <input
+                name="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={() => setNameTouched(true)}
+                className={`modal-field ${!nameValid ? "border-red-500/60" : ""}`}
+              />
+              {!nameValid && <p className="mt-1 text-[11px] text-red-400">الاسم مطلوب.</p>}
             </Field>
             <Field label="الجوال">
               <input
@@ -176,7 +197,7 @@ export default function AddInfluencerModal({
             </button>
             <button
               type="submit"
-              disabled={!canSave}
+              disabled={loading}
               className="flex-1 rounded-xl bg-gold py-3 text-sm font-semibold text-bg transition-opacity disabled:opacity-50"
             >
               {loading ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "حفظ"}
