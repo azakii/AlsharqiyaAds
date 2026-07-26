@@ -36,6 +36,9 @@ export async function submitInfluencer(formData: FormData) {
       whatsapp: String(formData.get("whatsapp") || ""),
       snapchat: String(formData.get("snapchat") || ""),
     },
+    // رقم رخصة منصة "موثوق" — اختياري، خاص تماماً (راجع data.ts/toPublicInfluencer).
+    // وجوده فقط هو اللي بيفعّل شارة "موثوق" العامة — القيمة نفسها لا تظهر لغير الإدارة وصاحب الملف.
+    license_number: String(formData.get("license_number") || "").trim() || null,
     verified: false,
     status: "pending" as InfluencerStatus,
     views: 0,
@@ -101,7 +104,42 @@ export async function submitAdRequest(formData: FormData) {
   if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة حالياً (مفتاح الخدمة غير مُعد)." };
   const { error } = await sb.from("ad_requests").insert(payload);
   if (error) return { ok: false, message: error.message };
+
+  // نحاول نزوّد عداد "طلبات الإعلان" بتاع المؤثر المستهدف — target_influencer مخزّن كاسم
+  // نصي (من قائمة select في الفورم) مش id، فالمطابقة بالاسم أفضل حل متاح بالشكل الحالي.
+  // لو حابب تتبع أدق مستقبلاً، ينفع نحوّل الحقل ده لـ id بدل الاسم.
+  if (payload.target_influencer) {
+    const { data: match } = await sb
+      .from("influencers")
+      .select("id")
+      .ilike("name", payload.target_influencer.trim())
+      .maybeSingle();
+    if (match) {
+      await sb.rpc("increment_influencer_stat", { influencer_id: match.id, stat_column: "ad_requests" });
+    }
+  }
+
   return { ok: true, message: "تم إرسال طلب الإعلان بنجاح، سنتواصل معك قريباً." };
+}
+
+/**
+ * Public: bump a view/click/ad_requests counter. Runs via the service-role client since
+ * anon-key writes are blocked by RLS on purpose — this is the one write visitors trigger
+ * without being an admin or the profile owner, scoped to a safe atomic counter increment.
+ */
+export async function incrementInfluencerStat(
+  id: string,
+  stat: "views" | "clicks" | "ad_requests"
+): Promise<{ ok: boolean }> {
+  if (!supabaseEnabled) return { ok: true };
+  const sb = getSupabaseAdmin();
+  if (!sb) return { ok: false };
+  const { error } = await sb.rpc("increment_influencer_stat", { influencer_id: id, stat_column: stat });
+  if (error) {
+    console.error("incrementInfluencerStat:", error.message);
+    return { ok: false };
+  }
+  return { ok: true };
 }
 
 // ---------- Admin auth ----------
@@ -240,6 +278,7 @@ function influencerPayloadFromForm(formData: FormData) {
       whatsapp: String(formData.get("whatsapp") || ""),
       snapchat: String(formData.get("snapchat") || ""),
     },
+    license_number: String(formData.get("license_number") || "").trim() || null,
     verified: formData.get("verified") === "on" || formData.get("verified") === "true",
     status: (String(formData.get("status") || "approved") as InfluencerStatus) || "approved",
   };
@@ -320,6 +359,7 @@ function selfPayloadFromForm(formData: FormData) {
       whatsapp: String(formData.get("whatsapp") || ""),
       snapchat: String(formData.get("snapchat") || ""),
     },
+    license_number: String(formData.get("license_number") || "").trim() || null,
   };
 }
 

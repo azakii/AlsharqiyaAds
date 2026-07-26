@@ -162,7 +162,7 @@ export default function AdminDashboard({
                     <StatusPill status={inf.status} />
                     {inf.verified && (
                       <span className="flex items-center gap-1 rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 text-[10px] text-gold">
-                        <BadgeCheck className="h-3 w-3" /> المنصة توصي به
+                        <BadgeCheck className="h-3 w-3" /> موثّق
                       </span>
                     )}
                   </div>

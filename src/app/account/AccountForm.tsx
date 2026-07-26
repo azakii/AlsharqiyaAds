@@ -63,7 +63,7 @@ export default function AccountForm({ influencer }: { influencer: Influencer }) 
 
       {influencer.verified && (
         <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-xs text-gold">
-          <BadgeCheck className="h-3.5 w-3.5" /> المنصة توصي به — شارة مضافة من الإدارة
+          <BadgeCheck className="h-3.5 w-3.5" /> موثّق — شارة مضافة من الإدارة
         </span>
       )}
 
@@ -115,6 +115,19 @@ export default function AccountForm({ influencer }: { influencer: Influencer }) 
 
         <Field label="نبذة عنك">
           <textarea name="bio" rows={4} defaultValue={influencer.bio} className="field resize-none" />
+        </Field>
+
+        <Field label="رقم رخصة منصة موثوق (اختياري)">
+          <input
+            name="license_number"
+            dir="ltr"
+            placeholder="اتركه فارغاً إن لم يتوفر"
+            defaultValue={influencer.license_number || ""}
+            className="field"
+          />
+          <p className="mt-1.5 text-xs text-white/35">
+            سرّي ولا يظهر لأحد غيرك وغير الإدارة. وجوده يفعّل شارة "موثوق" في ملفك العام.
+          </p>
         </Field>
 
         <div className="grid gap-5 sm:grid-cols-2">

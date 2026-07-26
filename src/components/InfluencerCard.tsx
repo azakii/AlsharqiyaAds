@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BadgeCheck, Eye, MapPin } from "lucide-react";
 import { SOCIAL_META } from "./Icons";
 import { formatFollowers } from "@/lib/constants";
+import { incrementInfluencerStat } from "@/lib/actions";
 import type { Influencer } from "@/lib/types";
 
 export default function InfluencerCard({ inf }: { inf: Influencer }) {
@@ -18,14 +19,14 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
         <span className="text-[11px] text-muted">{inf.views.toLocaleString("en")}</span>
       </div>
 
-      {/* verified badge: glow pulse + shimmer sweep — combined icon + "المنصة توصي به" label */}
+      {/* verified badge: glow pulse + shimmer sweep — combined icon + "موثّق" label */}
       {inf.verified && (
         <div className="absolute top-4 right-4 z-10 max-w-[62%]">
           <div className="relative">
             <div className="animate-glow-pulse absolute inset-0 rounded-full bg-gold/40 blur-md" />
             <div className="shimmer-badge relative flex items-center gap-1 rounded-full px-2.5 py-1.5">
               <BadgeCheck className="h-3 w-3 flex-shrink-0 text-bg" />
-              <span className="truncate text-[10px] font-semibold text-bg">المنصة توصي به</span>
+              <span className="truncate text-[10px] font-semibold text-bg">موثّق</span>
             </div>
           </div>
         </div>
@@ -69,6 +70,7 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
                   key={key}
                   onClick={(e) => {
                     e.preventDefault();
+                    incrementInfluencerStat(inf.id, "clicks").catch(() => {});
                     window.open(url as string, "_blank", "noopener,noreferrer");
                   }}
                   className={`glass flex h-8 w-8 items-center justify-center rounded-full text-muted transition-all hover:scale-110 hover:text-gold`}

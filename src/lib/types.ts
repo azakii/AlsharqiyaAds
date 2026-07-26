@@ -23,6 +23,10 @@ export interface Influencer {
     snapchat?: string;
   };
   auth_user_id?: string | null;
+  /** رقم رخصة منصة "موثوق" — حقل خاص، يُعاد فقط للإدارة أو لصاحب الملف نفسه (لا يظهر عبر القراءة العامة). */
+  license_number?: string | null;
+  /** مشتق آمن للعرض العام: هل يوجد رقم رخصة أم لا، بدون كشف الرقم نفسه. */
+  has_license?: boolean;
   created_at?: string;
 }
 

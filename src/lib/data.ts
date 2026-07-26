@@ -2,6 +2,17 @@ import { getSupabase, getSupabaseAdmin, supabaseEnabled } from "./supabase";
 import { MOCK_INFLUENCERS, MOCK_AD_REQUESTS } from "./mock";
 import type { Influencer, AdRequest } from "./types";
 
+/**
+ * Strips the private license_number column and replaces it with a safe derived boolean
+ * (has_license) before a row ever reaches a public page. RLS only filters rows, not
+ * columns, so this application-layer step is what actually keeps the raw license number
+ * out of anything sent to the browser on public pages.
+ */
+function toPublicInfluencer(row: Influencer & { license_number?: string | null }): Influencer {
+  const { license_number, ...rest } = row;
+  return { ...rest, has_license: Boolean(license_number) };
+}
+
 /** Public: only approved influencers, for the site grid + profiles. */
 export async function getApprovedInfluencers(): Promise<Influencer[]> {
   if (!supabaseEnabled) return MOCK_INFLUENCERS.filter((i) => i.status === "approved");
@@ -16,12 +27,27 @@ export async function getApprovedInfluencers(): Promise<Influencer[]> {
     console.error("getApprovedInfluencers:", error.message);
     return [];
   }
-  return (data as Influencer[]) ?? [];
+  return ((data as Influencer[]) ?? []).map(toPublicInfluencer);
 }
 
+/** Public: single influencer for the profile page — never exposes the raw license number. */
 export async function getInfluencerById(id: string): Promise<Influencer | null> {
   if (!supabaseEnabled) return MOCK_INFLUENCERS.find((i) => i.id === id) ?? null;
   const sb = getSupabase();
+  if (!sb) return null;
+  const { data, error } = await sb.from("influencers").select("*").eq("id", id).single();
+  if (error) return null;
+  return toPublicInfluencer(data as Influencer);
+}
+
+/**
+ * Owner-only: same row but keeps the raw license_number so the influencer can see/edit
+ * their own submission on /account. Safe because account/page.tsx already verifies
+ * ownership via the signed sq_user session cookie before calling this.
+ */
+export async function getOwnInfluencerProfile(id: string): Promise<Influencer | null> {
+  if (!supabaseEnabled) return MOCK_INFLUENCERS.find((i) => i.id === id) ?? null;
+  const sb = getSupabaseAdmin();
   if (!sb) return null;
   const { data, error } = await sb.from("influencers").select("*").eq("id", id).single();
   if (error) return null;

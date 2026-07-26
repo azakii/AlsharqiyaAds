@@ -12,7 +12,7 @@ const STEPS = ["البيانات الأساسية", "التفاصيل والمح
 
 const empty = {
   name: "", phone: "", email: "", password: "", city: "",
-  category: "", bio: "", followers: "",
+  category: "", bio: "", followers: "", license_number: "",
   avatar_url: "",
   instagram: "", tiktok: "", x: "", whatsapp: "", snapchat: "",
 };
@@ -124,6 +124,18 @@ export default function RegisterForm() {
           </Field>
           <Field label="عدد المتابعين (تقريبي)">
             <input type="number" className="field" placeholder="مثال: 50000" value={data.followers} onChange={(e) => set("followers", e.target.value)} />
+          </Field>
+          <Field label="رقم رخصة منصة موثوق (اختياري)">
+            <input
+              className="field"
+              dir="ltr"
+              placeholder="اتركه فارغاً إذا لم يتوفر"
+              value={data.license_number}
+              onChange={(e) => set("license_number", e.target.value)}
+            />
+            <p className="mt-1.5 text-xs text-white/35">
+              الرقم سرّي ولا يظهر لغير الإدارة. لو أضفته، هيظهر في ملفك شارة "موثوق".
+            </p>
           </Field>
         </div>
       )}

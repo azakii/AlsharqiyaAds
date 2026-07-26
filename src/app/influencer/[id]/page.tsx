@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BadgeCheck, MapPin, Eye, MousePointerClick, Megaphone, Users, ArrowLeft } from "lucide-react";
+import { BadgeCheck, ShieldCheck, MapPin, Eye, MousePointerClick, Megaphone, Users, ArrowLeft } from "lucide-react";
 import { SOCIAL_META, Whatsapp } from "@/components/Icons";
+import TrackedSocialLink from "@/components/TrackedSocialLink";
 import { getInfluencerById } from "@/lib/data";
+import { incrementInfluencerStat } from "@/lib/actions";
 import { formatFollowers } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +12,9 @@ export const dynamic = "force-dynamic";
 export default async function InfluencerPage({ params }: { params: { id: string } }) {
   const inf = await getInfluencerById(params.id);
   if (!inf || inf.status !== "approved") notFound();
+
+  // عداد مشاهدات — لا نوقف عرض الصفحة في انتظاره.
+  incrementInfluencerStat(inf.id, "views").catch(() => {});
 
   const socials = Object.entries(inf.socials).filter(([, v]) => v);
   const wa = inf.socials.whatsapp;
@@ -39,15 +44,15 @@ export default async function InfluencerPage({ params }: { params: { id: string 
 
             {/* info */}
             <div className="flex-1 text-center lg:text-right">
-              <div className="flex items-center justify-center gap-2 lg:justify-start">
-                <h1 className="font-display text-3xl font-bold text-white sm:text-4xl">{inf.name}</h1>
-                {inf.verified && (
-                  <span className="badge-gold">
-                    <BadgeCheck className="h-3 w-3" /> المنصة توصي به
-                  </span>
-                )}
-              </div>
+              {/* اسم المؤثر — شارة "موثّق" أصبحت أيقونة فقط على الصورة الشخصية (فوق)، من غير نص مكرر هنا */}
+              <h1 className="font-display text-3xl font-bold text-white sm:text-4xl">{inf.name}</h1>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted lg:mx-0">{inf.bio}</p>
+
+              {inf.has_license && (
+                <span className="badge-gold mx-auto mt-2 lg:mx-0">
+                  <ShieldCheck className="h-3 w-3" /> موثوق
+                </span>
+              )}
 
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
                 <span className="glass flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-muted">
@@ -75,14 +80,13 @@ export default async function InfluencerPage({ params }: { params: { id: string 
                 اطلب إعلان <ArrowLeft className="h-4 w-4" />
               </Link>
               {wa && (
-                <a
+                <TrackedSocialLink
                   href={wa}
-                  target="_blank"
-                  rel="noreferrer"
+                  influencerId={inf.id}
                   className="glass flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold text-white/80 transition-all hover:border-gold/40 hover:text-gold"
                 >
                   <Whatsapp className="h-4 w-4" /> تواصل عبر واتساب
-                </a>
+                </TrackedSocialLink>
               )}
             </div>
           </div>
@@ -100,18 +104,17 @@ export default async function InfluencerPage({ params }: { params: { id: string 
                 if (!meta) return null;
                 const Icon = meta.Icon;
                 return (
-                  <a
+                  <TrackedSocialLink
                     key={key}
                     href={url as string}
-                    target="_blank"
-                    rel="noreferrer"
+                    influencerId={inf.id}
                     className="flex items-center justify-between rounded-xl border border-line bg-black/30 px-4 py-3 text-sm text-white/80 transition hover:border-gold/40 hover:text-gold"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     <span className="flex items-center gap-2">
                       {meta.label} <Icon className="h-4 w-4" />
                     </span>
-                  </a>
+                  </TrackedSocialLink>
                 );
               })}
             </div>

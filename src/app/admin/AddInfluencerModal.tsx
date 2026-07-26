@@ -148,6 +148,16 @@ export default function AddInfluencerModal({
             <textarea name="bio" rows={3} defaultValue={influencer?.bio} className="modal-field resize-none" />
           </Field>
 
+          <Field label="رقم رخصة منصة موثوق (خاص — لا يظهر إلا هنا)">
+            <input
+              name="license_number"
+              dir="ltr"
+              placeholder="اتركه فارغاً إن لم يوجد"
+              defaultValue={influencer?.license_number || ""}
+              className="modal-field"
+            />
+          </Field>
+
           <Row>
             <Field label="Instagram">
               <input name="instagram" dir="ltr" defaultValue={influencer?.socials.instagram} className="modal-field" />
@@ -180,7 +190,7 @@ export default function AddInfluencerModal({
           </Row>
 
           <label className="glass flex cursor-pointer items-center justify-between rounded-xl px-4 py-3">
-            <span className="text-sm text-white/80">المنصة توصي به (شارة التوصية)</span>
+            <span className="text-sm text-white/80">موثّق (تفعيل الشارة الذهبية)</span>
             <input
               type="checkbox"
               name="verified"

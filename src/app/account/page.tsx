@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentInfluencerId } from "@/lib/userAuth";
-import { getInfluencerById } from "@/lib/data";
+import { getOwnInfluencerProfile } from "@/lib/data";
 import AccountForm from "./AccountForm";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,9 @@ export default async function AccountPage() {
   const uid = currentInfluencerId();
   if (!uid) redirect("/login");
 
-  const influencer = await getInfluencerById(uid);
+  // getOwnInfluencerProfile (not the public-safe getInfluencerById) so the influencer
+  // can see/edit their own license_number — ownership already verified via the session cookie.
+  const influencer = await getOwnInfluencerProfile(uid);
   if (!influencer) redirect("/login");
 
   return (
