@@ -306,6 +306,38 @@ export async function setInfluencerStatus(id: string, status: InfluencerStatus) 
   return { ok: true };
 }
 
+/** إجراء مجمع: تغيير حالة عدة مؤثرين مرة واحدة (تحديث واحد في قاعدة البيانات بدل حلقة). */
+export async function bulkSetInfluencerStatus(ids: string[], status: InfluencerStatus) {
+  await guard();
+  if (!ids || ids.length === 0) return { ok: false, message: "لم يتم تحديد أي مؤثر." };
+  if (!supabaseEnabled) return { ok: true, demo: true };
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data, error } = await sb.from("influencers").update({ status }).in("id", ids).select("id");
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true, message: `تم تحديث حالة ${data?.length ?? 0} مؤثر.` };
+}
+
+/** إجراء مجمع: حذف عدة مؤثرين مرة واحدة. */
+export async function bulkDeleteInfluencers(ids: string[]) {
+  await guard();
+  if (!ids || ids.length === 0) return { ok: false, message: "لم يتم تحديد أي مؤثر." };
+  if (!supabaseEnabled) return { ok: true, demo: true };
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data, error } = await sb.from("influencers").delete().in("id", ids).select("id");
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true, message: `تم حذف ${data?.length ?? 0} مؤثر.` };
+}
+
 export async function setVerified(id: string, verified: boolean) {
   await guard();
   if (!supabaseEnabled) return { ok: true, demo: true };

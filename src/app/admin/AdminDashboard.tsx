@@ -3,16 +3,16 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle, MoreVertical, CalendarDays, MessageCircle, Phone, ChevronRight, ChevronLeft, FilterX,
+  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle, MoreVertical, CalendarDays, MessageCircle, Phone, ChevronRight, ChevronLeft, FilterX, XCircle,
 } from "lucide-react";
 import { formatFollowers } from "@/lib/constants";
 import { normalizePhone } from "@/lib/validators";
 import {
-  setInfluencerStatus, deleteInfluencer, deleteAdRequest,
+  setInfluencerStatus, deleteInfluencer, deleteAdRequest, bulkSetInfluencerStatus, bulkDeleteInfluencers,
 } from "@/lib/actions";
 import SettingsForm from "./SettingsForm";
 import AddInfluencerModal from "./AddInfluencerModal";
-import type { Influencer, AdRequest } from "@/lib/types";
+import type { Influencer, AdRequest, InfluencerStatus } from "@/lib/types";
 import type { Stats } from "@/lib/data";
 import type { SiteSettings } from "@/lib/settings";
 
@@ -65,6 +65,55 @@ export default function AdminDashboard({
   const [adPage, setAdPage] = useState(1);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllOnPage(pageIds: string[]) {
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  function runBulkStatus(status: InfluencerStatus) {
+    const ids = Array.from(selected);
+    startTransition(async () => {
+      const res: ActionResult = await bulkSetInfluencerStatus(ids, status);
+      if (!res.ok) {
+        setActionError(res.message || "حدث خطأ غير متوقع، حاول مرة أخرى.");
+      } else {
+        setActionError("");
+        setSelected(new Set());
+        router.refresh();
+      }
+    });
+  }
+
+  function runBulkDelete() {
+    const ids = Array.from(selected);
+    if (!confirm(`هل تريد حذف ${ids.length} مؤثر؟`)) return;
+    startTransition(async () => {
+      const res: ActionResult = await bulkDeleteInfluencers(ids);
+      if (!res.ok) {
+        setActionError(res.message || "حدث خطأ غير متوقع، حاول مرة أخرى.");
+      } else {
+        setActionError("");
+        setSelected(new Set());
+        router.refresh();
+      }
+    });
+  }
 
   // روابط الهيدر (المؤثرون/طلبات الإعلان/إعدادات الموقع) بتدخل بـ /admin?tab=... — لو الصفحة
   // كانت أصلاً مفتوحة على /admin ومتغيرش الراوت، الكومبوننت بيفضل نفسه فقط الـ prop بيتحدث.
@@ -79,6 +128,7 @@ export default function AdminDashboard({
 
   useEffect(() => {
     setInfPage(1);
+    setSelected(new Set());
   }, [q, statusFilter]);
 
   useEffect(() => {
@@ -218,10 +268,65 @@ export default function AdminDashboard({
             </select>
           </div>
 
-          <div className="mt-5 space-y-3">
+          {/* شريط التحديد الجماعي — يظهر بس لما يبقى فيه عنصر محدد على الأقل */}
+          {selected.size > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3">
+              <span className="text-sm font-semibold text-gold">{selected.size} محدد</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => runBulkStatus("approved")}
+                  disabled={isPending}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs text-green-400 hover:bg-green-500/25 disabled:opacity-50"
+                >
+                  <Check className="h-3.5 w-3.5" /> قبول المحدد
+                </button>
+                <button
+                  onClick={() => runBulkStatus("rejected")}
+                  disabled={isPending}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10 disabled:opacity-50"
+                >
+                  <X className="h-3.5 w-3.5" /> رفض المحدد
+                </button>
+                <button
+                  onClick={runBulkDelete}
+                  disabled={isPending}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20 disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> حذف المحدد
+                </button>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/50 hover:text-white/80"
+                >
+                  <XCircle className="h-3.5 w-3.5" /> إلغاء التحديد
+                </button>
+              </div>
+            </div>
+          )}
+
+          {pagedInfluencers.length > 0 && (
+            <label className="mt-4 flex w-fit items-center gap-2 text-xs text-white/50">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-gold"
+                checked={pagedInfluencers.every((i) => selected.has(i.id))}
+                onChange={() => toggleSelectAllOnPage(pagedInfluencers.map((i) => i.id))}
+              />
+              تحديد الكل في هذه الصفحة
+            </label>
+          )}
+
+          <div className="mt-3 space-y-3">
             {pagedInfluencers.map((inf) => (
               <div key={inf.id} className="card flex flex-col items-start gap-4 p-4 sm:flex-row sm:items-center">
-                {/* DOM order avatar → info → controls: RTL renders avatar on the right, controls on the left */}
+                {/* DOM order: checkbox → avatar → info → controls (RTL: checkbox أقصى اليمين، الكونترولز أقصى الشمال) */}
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 flex-shrink-0 accent-gold"
+                  checked={selected.has(inf.id)}
+                  onChange={() => toggleSelect(inf.id)}
+                  aria-label={`تحديد ${inf.name}`}
+                />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={inf.avatar_url || "/avatar-placeholder.svg"}
