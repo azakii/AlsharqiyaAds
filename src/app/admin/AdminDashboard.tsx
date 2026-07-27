@@ -348,7 +348,7 @@ function MenuItem({
       disabled={disabled}
       className={`flex w-full items-center justify-start gap-2 px-4 py-2.5 text-xs transition disabled:opacity-50 ${toneClass}`}
     >
-      {children} {icon}
+      {icon} {children}
     </button>
   );
 }
