@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, MousePointerClick, Megaphone, BadgeCheck, LogOut, Save, Loader2, Check, KeyRound, Lock } from "lucide-react";
+import { Eye, MousePointerClick, Megaphone, BadgeCheck, LogOut, Save, Loader2, Check, KeyRound, Lock, Users } from "lucide-react";
 import { CITIES, CATEGORIES } from "@/lib/constants";
 import { updateOwnProfile, logoutInfluencer, changePassword } from "@/lib/actions";
-import { isSaudiPhone, SAUDI_PHONE_ERROR } from "@/lib/validators";
+import { isSaudiPhone, SAUDI_PHONE_ERROR, normalizePhone } from "@/lib/validators";
 import AvatarUploader from "@/components/AvatarUploader";
+import { Whatsapp } from "@/components/Icons";
 import type { Influencer } from "@/lib/types";
 
-export default function AccountForm({ influencer }: { influencer: Influencer }) {
+export default function AccountForm({ influencer, supportWhatsapp }: { influencer: Influencer; supportWhatsapp: string }) {
   const router = useRouter();
   const [phone, setPhone] = useState(influencer.phone || "");
   const [phoneTouched, setPhoneTouched] = useState(false);
@@ -121,7 +122,25 @@ export default function AccountForm({ influencer }: { influencer: Influencer }) 
             <input name="email" type="email" dir="ltr" defaultValue={influencer.email} className="field" />
           </Field>
           <Field label="عدد المتابعين (تقريبي)">
-            <input name="followers" type="number" dir="ltr" defaultValue={influencer.followers} className="field" />
+            <div className="field flex cursor-not-allowed items-center justify-between gap-2 text-white/60 opacity-70">
+              <span dir="ltr" className="flex items-center gap-2">
+                <Lock className="h-3.5 w-3.5 text-white/30" />
+                {influencer.followers.toLocaleString("en")}
+              </span>
+              <Users className="h-4 w-4 text-white/25" />
+            </div>
+            <p className="mt-1.5 text-xs text-white/35">
+              لا يمكنك تعديل هذا الرقم بنفسك — يتم تحديثه من قبل الإدارة فقط. لطلب تحديث،{" "}
+              <a
+                href={`https://wa.me/${normalizePhone(supportWhatsapp).replace(/^\+/, "")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-gold underline underline-offset-2 hover:text-gold-light"
+              >
+                <Whatsapp className="h-3.5 w-3.5" /> تواصل مع الإدارة
+              </a>
+              .
+            </p>
           </Field>
         </div>
 

@@ -442,7 +442,8 @@ function selfPayloadFromForm(formData: FormData) {
     city: String(formData.get("city") || ""),
     category: String(formData.get("category") || ""),
     bio: String(formData.get("bio") || ""),
-    followers: Number(formData.get("followers") || 0),
+    // followers متعمداً غير موجود هنا: المؤثر لا يملك صلاحية تعديل عدد المتابعين،
+    // هذه الخاصية حصرية للإدارة (راجع AccountForm.tsx).
     avatar_url: String(formData.get("avatar_url") || ""),
     socials: {
       instagram: String(formData.get("instagram") || ""),

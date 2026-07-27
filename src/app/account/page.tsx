@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { currentInfluencerId } from "@/lib/userAuth";
 import { getOwnInfluencerProfile } from "@/lib/data";
+import { getSettings } from "@/lib/settings";
 import AccountForm from "./AccountForm";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ export default async function AccountPage() {
   const influencer = await getOwnInfluencerProfile(uid);
   if (!influencer) redirect("/login");
 
+  const settings = await getSettings();
+
   return (
     <div className="container-max py-12">
       <div className="text-right">
@@ -22,7 +25,7 @@ export default async function AccountPage() {
         <p className="text-sm text-white/45">إدارة ملفك الشخصي كمؤثر</p>
       </div>
 
-      <AccountForm influencer={influencer} />
+      <AccountForm influencer={influencer} supportWhatsapp={settings.support_whatsapp} />
     </div>
   );
 }
