@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getSupabase, getSupabaseAdmin, supabaseEnabled } from "./supabase";
 import { adminCreds, makeToken, ADMIN_COOKIE, isAdmin } from "./auth";
@@ -212,6 +212,66 @@ export async function loginInfluencer(formData: FormData) {
 export async function logoutInfluencer() {
   cookies().delete(USER_COOKIE);
   return { ok: true };
+}
+
+/** الأصل (origin) الحالي من رأس الطلب — يستخدم في بناء رابط إعادة تعيين كلمة المرور. */
+function siteOrigin(): string {
+  const h = headers();
+  const host = h.get("host") || "localhost:3000";
+  const proto = h.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+/**
+ * "نسيت كلمة المرور؟" — يرسل Supabase إيميل فيه رابط إعادة تعيين لو البريد مسجل فعلاً.
+ * نرجّع رسالة نجاح ثابتة سواء كان البريد موجود أو لأ، عشان محدش يقدر يتأكد إن بريد معين مسجل عندنا.
+ */
+export async function requestPasswordReset(formData: FormData) {
+  const email = String(formData.get("email") || "").trim();
+  if (!email) return { ok: false, message: "البريد الإلكتروني مطلوب." };
+
+  const genericMessage = "لو البريد الإلكتروني مسجّل عندنا، وصلك رابط لإعادة تعيين كلمة المرور خلال دقائق.";
+
+  if (!supabaseEnabled) return { ok: true, message: genericMessage };
+  const anon = getSupabase();
+  if (!anon) return { ok: false, message: "تعذر الاتصال بالخادم." };
+
+  const { error } = await anon.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteOrigin()}/reset-password`,
+  });
+  // ما نكشفش تفاصيل الخطأ للمستخدم (زي "البريد غير موجود") حفاظاً على الخصوصية — بس نسجله في اللوج.
+  if (error) console.error("requestPasswordReset:", error.message);
+
+  return { ok: true, message: genericMessage };
+}
+
+/** تغيير كلمة المرور من داخل صفحة "حسابي" — يتطلب معرفة كلمة المرور الحالية أولاً كتأكيد هوية. */
+export async function changePassword(formData: FormData) {
+  const uid = currentInfluencerId();
+  if (!uid) return { ok: false, message: "يجب تسجيل الدخول أولاً." };
+
+  const currentPassword = String(formData.get("current_password") || "");
+  const newPassword = String(formData.get("new_password") || "");
+  if (!currentPassword) return { ok: false, message: "أدخل كلمة المرور الحالية." };
+  if (newPassword.length < 6) return { ok: false, message: "كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف." };
+
+  if (!supabaseEnabled) return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي)." };
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data: inf } = await sb.from("influencers").select("email,auth_user_id").eq("id", uid).maybeSingle();
+  if (!inf || !inf.auth_user_id) return { ok: false, message: "تعذر العثور على حسابك." };
+
+  // نتأكد إن كلمة المرور الحالية صح قبل ما نغيّرها — بمحاولة تسجيل دخول فعلي بيها.
+  const anon = getSupabase();
+  if (!anon) return { ok: false, message: "تعذر الاتصال بالخادم." };
+  const { error: verifyError } = await anon.auth.signInWithPassword({ email: inf.email, password: currentPassword });
+  if (verifyError) return { ok: false, message: "كلمة المرور الحالية غير صحيحة." };
+
+  const { error } = await sb.auth.admin.updateUserById(inf.auth_user_id, { password: newPassword });
+  if (error) return { ok: false, message: error.message };
+
+  return { ok: true, message: "تم تغيير كلمة المرور بنجاح." };
 }
 
 // ---------- Admin mutations ----------

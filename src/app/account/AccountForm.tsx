@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, MousePointerClick, Megaphone, BadgeCheck, LogOut, Save, Loader2, Check } from "lucide-react";
+import { Eye, MousePointerClick, Megaphone, BadgeCheck, LogOut, Save, Loader2, Check, KeyRound, Lock } from "lucide-react";
 import { CITIES, CATEGORIES } from "@/lib/constants";
-import { updateOwnProfile, logoutInfluencer } from "@/lib/actions";
+import { updateOwnProfile, logoutInfluencer, changePassword } from "@/lib/actions";
 import { isSaudiPhone, SAUDI_PHONE_ERROR } from "@/lib/validators";
 import AvatarUploader from "@/components/AvatarUploader";
 import type { Influencer } from "@/lib/types";
@@ -18,7 +18,34 @@ export default function AccountForm({ influencer }: { influencer: Influencer }) 
   const [loggingOut, setLoggingOut] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   const phoneValid = !phoneTouched || isSaudiPhone(phone);
+
+  async function onChangePassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPwMsg(null);
+    if (newPassword !== confirmPassword) {
+      setPwMsg({ ok: false, text: "كلمتا المرور الجديدتان غير متطابقتين." });
+      return;
+    }
+    setPwLoading(true);
+    const fd = new FormData();
+    fd.set("current_password", currentPassword);
+    fd.set("new_password", newPassword);
+    const res = await changePassword(fd);
+    setPwMsg({ ok: !!res.ok, text: res.message || (res.ok ? "تم الحفظ" : "حدث خطأ") });
+    setPwLoading(false);
+    if (res.ok) {
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    }
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -156,6 +183,71 @@ export default function AccountForm({ influencer }: { influencer: Influencer }) 
           {msg && (
             <span className={`flex items-center gap-1 text-sm ${msg.ok ? "text-green-400" : "text-red-400"}`}>
               {msg.ok && <Check className="h-4 w-4" />} {msg.text}
+            </span>
+          )}
+        </div>
+      </form>
+
+      {/* تغيير كلمة المرور — فورم منفصل عن تعديل الملف الشخصي، بيتطلب كلمة المرور الحالية كتأكيد */}
+      <form onSubmit={onChangePassword} className="card space-y-5 p-6 sm:p-8">
+        <div className="flex items-center gap-2 border-r-2 border-gold pr-3">
+          <KeyRound className="h-5 w-5 text-gold" />
+          <h2 className="font-display text-lg font-bold text-white">تغيير كلمة المرور</h2>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-3">
+          <Field label="كلمة المرور الحالية">
+            <div className="relative">
+              <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+              <input
+                type="password"
+                dir="ltr"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="field pr-10"
+                placeholder="••••••••"
+                required
+              />
+            </div>
+          </Field>
+          <Field label="كلمة المرور الجديدة">
+            <div className="relative">
+              <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+              <input
+                type="password"
+                dir="ltr"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="field pr-10"
+                placeholder="••••••••"
+                required
+              />
+            </div>
+          </Field>
+          <Field label="تأكيد كلمة المرور الجديدة">
+            <div className="relative">
+              <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+              <input
+                type="password"
+                dir="ltr"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="field pr-10"
+                placeholder="••••••••"
+                required
+              />
+            </div>
+          </Field>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <button type="submit" disabled={pwLoading} className="btn-gold disabled:opacity-60">
+            {pwLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+            تحديث كلمة المرور
+          </button>
+          {pwMsg && (
+            <span className={`flex items-center gap-1 text-sm ${pwMsg.ok ? "text-green-400" : "text-red-400"}`}>
+              {pwMsg.ok && <Check className="h-4 w-4" />} {pwMsg.text}
             </span>
           )}
         </div>

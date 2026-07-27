@@ -34,7 +34,10 @@ export default function LoginForm() {
         </div>
       </div>
       <div>
-        <label className="field-label">كلمة المرور</label>
+        <div className="flex items-center justify-between">
+          <label className="field-label">كلمة المرور</label>
+          <a href="/forgot-password" className="mb-2 text-xs text-gold hover:underline">نسيت كلمة المرور؟</a>
+        </div>
         <div className="relative">
           <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
           <input name="password" type="password" dir="ltr" className="field pr-10" placeholder="••••••••" required />
