@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ShieldCheck, LogOut, Loader2 } from "lucide-react";
 import Logo from "./Logo";
 import { formatFollowers } from "@/lib/constants";
+import { logout } from "@/lib/actions";
 import type { SiteSettings } from "@/lib/settings";
 
 // "لوحة الإدارة" لا تظهر في القائمة الظاهرة للعامة — الوصول لها عبر /admin مباشرة
@@ -21,9 +22,27 @@ export interface NavUser {
   followers: number;
 }
 
-export default function Navbar({ settings, user }: { settings: SiteSettings; user: NavUser | null }) {
+export default function Navbar({
+  settings,
+  user,
+  admin,
+}: {
+  settings: SiteSettings;
+  user: NavUser | null;
+  admin: { username: string } | null;
+}) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleAdminLogout() {
+    setLoggingOut(true);
+    await logout();
+    setOpen(false);
+    router.push("/");
+    router.refresh();
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-bg/80 backdrop-blur-lg">
@@ -54,36 +73,60 @@ export default function Navbar({ settings, user }: { settings: SiteSettings; use
             DOM order: login/user-chip first (renders closer to the menu), ad-request last (far left edge). */}
         <div className="flex items-center justify-end gap-3">
           <div className="hidden items-center gap-3 md:flex">
-            {user ? (
-              <Link
-                href="/account"
-                className="glass flex items-center gap-2 rounded-full py-1.5 pl-4 pr-1.5 transition hover:text-gold"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={user.avatar_url || "/avatar-placeholder.svg"}
-                  alt={user.name}
-                  className="h-8 w-8 rounded-full border border-gold/30 object-cover"
-                />
-                <span className="text-right leading-tight">
-                  <span className="block text-xs font-semibold text-white">{user.name}</span>
-                  <span className="block text-[10px] text-gold">{formatFollowers(user.followers)} متابع</span>
+            {admin ? (
+              <>
+                <span className="glass flex items-center gap-2 rounded-full py-1.5 pl-4 pr-3 text-xs font-semibold text-white/80">
+                  <ShieldCheck className="h-4 w-4 text-gold" /> {admin.username}
                 </span>
-              </Link>
+                <button
+                  onClick={handleAdminLogout}
+                  disabled={loggingOut}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-line px-4 py-2 text-xs font-semibold text-gold transition-all hover:bg-gold/10 disabled:opacity-60"
+                >
+                  {loggingOut ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
+                  تسجيل خروج
+                </button>
+              </>
+            ) : user ? (
+              <>
+                <Link
+                  href="/account"
+                  className="glass flex items-center gap-2 rounded-full py-1.5 pl-4 pr-1.5 transition hover:text-gold"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={user.avatar_url || "/avatar-placeholder.svg"}
+                    alt={user.name}
+                    className="h-8 w-8 rounded-full border border-gold/30 object-cover"
+                  />
+                  <span className="text-right leading-tight">
+                    <span className="block text-xs font-semibold text-white">{user.name}</span>
+                    <span className="block text-[10px] text-gold">{formatFollowers(user.followers)} متابع</span>
+                  </span>
+                </Link>
+                <Link
+                  href="/ad-request"
+                  className="inline-flex items-center justify-center rounded-full bg-gold-gradient px-4 py-2 text-xs font-semibold text-black shadow-gold transition-all hover:brightness-105"
+                >
+                  طلب إعلان
+                </Link>
+              </>
             ) : (
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center rounded-full border border-line px-4 py-2 text-xs font-semibold text-gold transition-all hover:bg-gold/10"
-              >
-                تسجيل الدخول
-              </Link>
+              <>
+                <Link
+                  href="/login"
+                  className="inline-flex items-center justify-center rounded-full border border-line px-4 py-2 text-xs font-semibold text-gold transition-all hover:bg-gold/10"
+                >
+                  تسجيل الدخول
+                </Link>
+                <Link
+                  href="/ad-request"
+                  className="inline-flex items-center justify-center rounded-full bg-gold-gradient px-4 py-2 text-xs font-semibold text-black shadow-gold transition-all hover:brightness-105"
+                >
+                  طلب إعلان
+                </Link>
+              </>
             )}
-            <Link
-              href="/ad-request"
-              className="inline-flex items-center justify-center rounded-full bg-gold-gradient px-4 py-2 text-xs font-semibold text-black shadow-gold transition-all hover:brightness-105"
-            >
-              طلب إعلان
-            </Link>
           </div>
 
           <button className="text-white/80 md:hidden" onClick={() => setOpen((v) => !v)} aria-label="القائمة">
@@ -105,34 +148,54 @@ export default function Navbar({ settings, user }: { settings: SiteSettings; use
               </Link>
             </li>
           ))}
-          <li>
-            {user ? (
-              <Link
-                href="/account"
-                onClick={() => setOpen(false)}
-                className="block rounded-lg px-3 py-2 text-sm text-white/80 hover:bg-white/5 hover:text-gold"
-              >
-                حسابي ({user.name})
-              </Link>
-            ) : (
-              <Link
-                href="/login"
-                onClick={() => setOpen(false)}
-                className="block rounded-lg px-3 py-2 text-sm text-white/80 hover:bg-white/5 hover:text-gold"
-              >
-                تسجيل الدخول
-              </Link>
-            )}
-          </li>
-          <li>
-            <Link
-              href="/ad-request"
-              onClick={() => setOpen(false)}
-              className="block rounded-lg px-3 py-2 text-sm text-gold"
-            >
-              طلب إعلان
-            </Link>
-          </li>
+          {admin ? (
+            <>
+              <li className="flex items-center gap-1.5 px-3 py-2 text-sm text-white/80">
+                <ShieldCheck className="h-4 w-4 text-gold" /> {admin.username}
+              </li>
+              <li>
+                <button
+                  onClick={handleAdminLogout}
+                  disabled={loggingOut}
+                  className="flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-right text-sm text-gold hover:bg-white/5 disabled:opacity-60"
+                >
+                  {loggingOut ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
+                  تسجيل خروج
+                </button>
+              </li>
+            </>
+          ) : (
+            <>
+              <li>
+                {user ? (
+                  <Link
+                    href="/account"
+                    onClick={() => setOpen(false)}
+                    className="block rounded-lg px-3 py-2 text-sm text-white/80 hover:bg-white/5 hover:text-gold"
+                  >
+                    حسابي ({user.name})
+                  </Link>
+                ) : (
+                  <Link
+                    href="/login"
+                    onClick={() => setOpen(false)}
+                    className="block rounded-lg px-3 py-2 text-sm text-white/80 hover:bg-white/5 hover:text-gold"
+                  >
+                    تسجيل الدخول
+                  </Link>
+                )}
+              </li>
+              <li>
+                <Link
+                  href="/ad-request"
+                  onClick={() => setOpen(false)}
+                  className="block rounded-lg px-3 py-2 text-sm text-gold"
+                >
+                  طلب إعلان
+                </Link>
+              </li>
+            </>
+          )}
         </ul>
       )}
     </header>
