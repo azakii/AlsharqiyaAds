@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { BadgeCheck, ShieldCheck, Eye, MapPin } from "lucide-react";
 import { SOCIAL_META } from "./Icons";
