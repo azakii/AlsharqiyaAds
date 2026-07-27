@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Search, SlidersHorizontal, ChevronRight, ChevronLeft } from "lucide-react";
 import InfluencerCard from "./InfluencerCard";
 import { CITIES, CATEGORIES } from "@/lib/constants";
 import type { Influencer } from "@/lib/types";
+
+const PAGE_SIZE = 12;
 
 export default function InfluencerExplorer({ influencers }: { influencers: Influencer[] }) {
   const [q, setQ] = useState("");
   const [city, setCity] = useState("");
   const [category, setCategory] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
     return influencers.filter((i) => {
@@ -24,6 +27,14 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
       return matchQ && matchCity && matchCat;
     });
   }, [influencers, q, city, category]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q, city, category]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageClamped = Math.min(page, totalPages);
+  const paged = filtered.slice((pageClamped - 1) * PAGE_SIZE, pageClamped * PAGE_SIZE);
 
   const activeFilters = (city ? 1 : 0) + (category ? 1 : 0);
 
@@ -89,11 +100,38 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
       {filtered.length === 0 ? (
         <p className="mt-10 text-center text-muted">لا توجد نتائج مطابقة للبحث.</p>
       ) : (
-        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((inf) => (
-            <InfluencerCard key={inf.id} inf={inf} />
-          ))}
-        </div>
+        <>
+          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {paged.map((inf) => (
+              <InfluencerCard key={inf.id} inf={inf} />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="mt-10 flex items-center justify-center gap-3">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={pageClamped <= 1}
+                className="glass flex h-9 w-9 items-center justify-center rounded-full text-white/70 transition hover:text-gold disabled:opacity-30"
+                aria-label="الصفحة السابقة"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <span className="text-xs text-muted">
+                صفحة <span className="font-semibold text-white">{pageClamped}</span> من{" "}
+                <span className="font-semibold text-white">{totalPages}</span>
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={pageClamped >= totalPages}
+                className="glass flex h-9 w-9 items-center justify-center rounded-full text-white/70 transition hover:text-gold disabled:opacity-30"
+                aria-label="الصفحة التالية"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

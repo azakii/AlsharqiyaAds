@@ -124,7 +124,7 @@ export default async function InfluencerPage({ params }: { params: { id: string 
         )}
 
         <div className="mt-10 text-center">
-          <Link href="/#celebrities" className="text-sm text-muted hover:text-gold">
+          <Link href="/influencers" className="text-sm text-muted hover:text-gold">
             → العودة لقائمة المؤثرين
           </Link>
         </div>

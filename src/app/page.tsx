@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft, TrendingUp, MapPin, Users } from "lucide-react";
 import { Crown } from "@/components/Icons";
-import InfluencerExplorer from "@/components/InfluencerExplorer";
+import InfluencerCard from "@/components/InfluencerCard";
 import { getApprovedInfluencers } from "@/lib/data";
 import { getSettings } from "@/lib/settings";
 import { formatFollowers } from "@/lib/constants";
+
+const HOME_PREVIEW_COUNT = 8;
 
 export const dynamic = "force-dynamic";
 
@@ -57,8 +59,34 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Explorer */}
-      <InfluencerExplorer influencers={influencers} />
+      {/* معاينة المؤثرين — أول ٨ فقط (الأعلى متابعين، بترتيب getApprovedInfluencers)، والباقي في صفحة المشاهير الكاملة */}
+      <section id="celebrities" className="container-max scroll-mt-24 py-20">
+        <div className="text-center">
+          <span className="badge-gold mx-auto">نخبة المؤثرين الموثّقين</span>
+          <h2 className="mt-4 font-display text-4xl font-bold gold-text">استكشف المؤثرين</h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-muted">
+            تصفح نخبة من أفضل المؤثرين في المنطقة الشرقية
+          </p>
+        </div>
+
+        {influencers.length === 0 ? (
+          <p className="mt-10 text-center text-muted">لا يوجد مؤثرون حالياً.</p>
+        ) : (
+          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {influencers.slice(0, HOME_PREVIEW_COUNT).map((inf) => (
+              <InfluencerCard key={inf.id} inf={inf} />
+            ))}
+          </div>
+        )}
+
+        {influencers.length > HOME_PREVIEW_COUNT && (
+          <div className="mt-10 flex justify-center">
+            <Link href="/influencers" className="btn-gold">
+              شاهد المزيد <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </div>
+        )}
+      </section>
 
       {/* CTA */}
       <section className="container-max py-16">

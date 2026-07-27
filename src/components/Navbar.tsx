@@ -13,7 +13,7 @@ type NavLink = { href: string; label: string; tab?: string };
 
 const LINKS: NavLink[] = [
   { href: "/", label: "الرئيسية" },
-  { href: "/#celebrities", label: "المشاهير" },
+  { href: "/influencers", label: "المشاهير" },
 ];
 
 // لما يكون الأدمن مسجل دخول، القائمة الرئيسية تتحول لروابط لوحة التحكم مباشرة —
@@ -46,7 +46,10 @@ export default function Navbar({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const links = admin ? ADMIN_LINKS : LINKS;
+  // المنيو بتاعة الأدمن تظهر بس وهو داخل /admin فعلاً — لو راح لأي صفحة تانية (الرئيسية مثلاً)
+  // يشوف نفس منيو أي زائر عادي، حتى لو لسه مسجل دخول كأدمن (شارة اسمه وزر الخروج بيفضلوا ظاهرين برضه).
+  const onAdminRoute = pathname === "/admin";
+  const links = admin && onAdminRoute ? ADMIN_LINKS : LINKS;
   const currentAdminTab = searchParams.get("tab") || "influencers";
 
   function isActive(l: NavLink): boolean {
