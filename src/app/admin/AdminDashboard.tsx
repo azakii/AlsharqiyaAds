@@ -196,19 +196,6 @@ export default function AdminDashboard({
         <StatCard icon={<Clock />} value={stats.pending} label="طلبات معلقة" />
       </div>
 
-      {/* Tabs */}
-      <div className="mt-8 flex flex-wrap justify-start gap-2">
-        <TabBtn active={tab === "influencers"} onClick={() => setTab("influencers")}>
-          المؤثرون <Badge>{influencers.length}</Badge>
-        </TabBtn>
-        <TabBtn active={tab === "ads"} onClick={() => setTab("ads")}>
-          طلبات الإعلان <Badge>{adRequests.length}</Badge>
-        </TabBtn>
-        <TabBtn active={tab === "settings"} onClick={() => setTab("settings")}>
-          <Settings className="h-3.5 w-3.5" /> إعدادات الموقع
-        </TabBtn>
-      </div>
-
       {tab === "settings" ? (
         <>
           <SectionTitle icon={<Settings className="h-5 w-5" />} title="تعديل إعدادات الموقع" />
@@ -497,23 +484,6 @@ function StatCard({ icon, value, label }: { icon: React.ReactNode; value: number
       </div>
     </div>
   );
-}
-
-function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${
-        active ? "bg-gold-gradient font-semibold text-black" : "border border-line text-white/70 hover:text-gold"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="grid h-5 min-w-5 place-items-center rounded-full bg-black/20 px-1 text-[10px]">{children}</span>;
 }
 
 function StatusPill({ status }: { status: string }) {
