@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Menu, X, ShieldCheck, LogOut, Loader2, Home } from "lucide-react";
 import Logo from "./Logo";
@@ -9,16 +9,20 @@ import { formatFollowers } from "@/lib/constants";
 import { logout } from "@/lib/actions";
 import type { SiteSettings } from "@/lib/settings";
 
-const LINKS = [
+type NavLink = { href: string; label: string; tab?: string };
+
+const LINKS: NavLink[] = [
   { href: "/", label: "الرئيسية" },
   { href: "/#celebrities", label: "المشاهير" },
 ];
 
-// لما يكون الأدمن مسجل دخول، القائمة الرئيسية تتحول لروابط لوحة التحكم مباشرة
-const ADMIN_LINKS = [
-  { href: "/admin?tab=influencers", label: "المؤثرون" },
-  { href: "/admin?tab=ads", label: "طلبات الإعلان" },
-  { href: "/admin?tab=settings", label: "إعدادات الموقع" },
+// لما يكون الأدمن مسجل دخول، القائمة الرئيسية تتحول لروابط لوحة التحكم مباشرة —
+// كل رابط بيحمل اسم التاب بتاعه عشان نحدد العنصر الفعّال (active) صح، لأن usePathname
+// وحده مش كافي هنا (كل التلات روابط بتوصل لنفس المسار /admin، والفرق بس في ?tab=).
+const ADMIN_LINKS: NavLink[] = [
+  { href: "/admin?tab=influencers", label: "المؤثرون", tab: "influencers" },
+  { href: "/admin?tab=ads", label: "طلبات الإعلان", tab: "ads" },
+  { href: "/admin?tab=settings", label: "إعدادات الموقع", tab: "settings" },
 ];
 
 export interface NavUser {
@@ -38,10 +42,17 @@ export default function Navbar({
   admin: { username: string } | null;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const links = admin ? ADMIN_LINKS : LINKS;
+  const currentAdminTab = searchParams.get("tab") || "influencers";
+
+  function isActive(l: NavLink): boolean {
+    if (l.tab) return pathname === "/admin" && currentAdminTab === l.tab;
+    return pathname === l.href;
+  }
 
   async function handleAdminLogout() {
     setLoggingOut(true);
@@ -62,12 +73,14 @@ export default function Navbar({
         {/* Menu — column 2, centered */}
         <ul className="hidden items-center justify-center gap-8 md:flex">
           {links.map((l) => {
-            const active = pathname === l.href;
+            const active = isActive(l);
             return (
               <li key={l.href}>
                 <Link
                   href={l.href}
-                  className={`text-sm transition hover:text-gold ${active ? "text-gold" : "text-white/70"}`}
+                  className={`border-b-2 pb-1 text-sm transition hover:text-gold ${
+                    active ? "border-gold font-semibold text-gold" : "border-transparent text-white/70"
+                  }`}
                 >
                   {l.label}
                 </Link>
@@ -155,17 +168,22 @@ export default function Navbar({
 
       {open && (
         <ul className="container-max flex flex-col gap-1 pb-4 md:hidden">
-          {links.map((l) => (
-            <li key={l.href}>
-              <Link
-                href={l.href}
-                onClick={() => setOpen(false)}
-                className="block rounded-lg px-3 py-2 text-sm text-white/80 hover:bg-white/5 hover:text-gold"
-              >
-                {l.label}
-              </Link>
-            </li>
-          ))}
+          {links.map((l) => {
+            const active = isActive(l);
+            return (
+              <li key={l.href}>
+                <Link
+                  href={l.href}
+                  onClick={() => setOpen(false)}
+                  className={`block rounded-lg border-r-2 px-3 py-2 text-sm transition hover:bg-white/5 hover:text-gold ${
+                    active ? "border-gold font-semibold text-gold" : "border-transparent text-white/80"
+                  }`}
+                >
+                  {l.label}
+                </Link>
+              </li>
+            );
+          })}
           {admin ? (
             <>
               <li>
