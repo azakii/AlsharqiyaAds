@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, LogOut, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle,
+  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, LogOut, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle, MoreVertical,
 } from "lucide-react";
 import { formatFollowers } from "@/lib/constants";
 import {
@@ -40,6 +40,7 @@ export default function AdminDashboard({
   const [showAdd, setShowAdd] = useState(false);
   const [editingInfluencer, setEditingInfluencer] = useState<Influencer | null>(null);
   const [actionError, setActionError] = useState("");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const run = (fn: () => Promise<ActionResult>) =>
@@ -171,34 +172,71 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
                   <button
-                    onClick={() => setEditingInfluencer(inf)}
-                    className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10"
+                    onClick={() => setOpenMenuId(openMenuId === inf.id ? null : inf.id)}
+                    className="glass flex h-9 w-9 items-center justify-center rounded-full text-white/70 hover:text-gold"
+                    aria-label="خيارات"
                   >
-                    <Pencil className="h-3.5 w-3.5" /> تعديل
+                    <MoreVertical className="h-4 w-4" />
                   </button>
-                  <button
-                    onClick={() => run(() => setInfluencerStatus(inf.id, "approved"))}
-                    className="inline-flex items-center gap-1 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs text-green-400 hover:bg-green-500/25"
-                    disabled={isPending}
-                  >
-                    <Check className="h-3.5 w-3.5" /> قبول
-                  </button>
-                  <button
-                    onClick={() => run(() => setInfluencerStatus(inf.id, "rejected"))}
-                    className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10"
-                    disabled={isPending}
-                  >
-                    <X className="h-3.5 w-3.5" /> رفض
-                  </button>
-                  <button
-                    onClick={() => { if (confirm(`هل تريد حذف ${inf.name}؟`)) run(() => deleteInfluencer(inf.id)); }}
-                    className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20"
-                    disabled={isPending}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> حذف
-                  </button>
+
+                  {openMenuId === inf.id && (
+                    <>
+                      {/* backdrop to close on outside click */}
+                      <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
+                      <div className="glass-card absolute left-0 top-full z-50 mt-2 w-40 overflow-hidden rounded-xl py-1 text-right">
+                        <MenuItem
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            setEditingInfluencer(inf);
+                          }}
+                          icon={<Pencil className="h-3.5 w-3.5" />}
+                        >
+                          تعديل
+                        </MenuItem>
+
+                        {/* لا نعرض إجراء الحالة الحالية نفسه — لو مقبول أصلاً منعرضش "قبول" تاني، وهكذا */}
+                        {inf.status !== "approved" && (
+                          <MenuItem
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              run(() => setInfluencerStatus(inf.id, "approved"));
+                            }}
+                            icon={<Check className="h-3.5 w-3.5" />}
+                            tone="success"
+                            disabled={isPending}
+                          >
+                            قبول
+                          </MenuItem>
+                        )}
+                        {inf.status !== "rejected" && (
+                          <MenuItem
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              run(() => setInfluencerStatus(inf.id, "rejected"));
+                            }}
+                            icon={<X className="h-3.5 w-3.5" />}
+                            disabled={isPending}
+                          >
+                            رفض
+                          </MenuItem>
+                        )}
+
+                        <MenuItem
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            if (confirm(`هل تريد حذف ${inf.name}؟`)) run(() => deleteInfluencer(inf.id));
+                          }}
+                          icon={<Trash2 className="h-3.5 w-3.5" />}
+                          tone="danger"
+                          disabled={isPending}
+                        >
+                          حذف
+                        </MenuItem>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -241,6 +279,35 @@ export default function AdminDashboard({
         </div>
       )}
     </div>
+  );
+}
+
+function MenuItem({
+  children,
+  icon,
+  onClick,
+  tone = "default",
+  disabled = false,
+}: {
+  children: React.ReactNode;
+  icon: React.ReactNode;
+  onClick: () => void;
+  tone?: "default" | "success" | "danger";
+  disabled?: boolean;
+}) {
+  const toneClass =
+    tone === "success" ? "text-green-400 hover:bg-green-500/10" :
+    tone === "danger" ? "text-red-400 hover:bg-red-500/10" :
+    "text-white/80 hover:bg-white/5";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex w-full items-center justify-end gap-2 px-4 py-2.5 text-xs transition disabled:opacity-50 ${toneClass}`}
+    >
+      {children} {icon}
+    </button>
   );
 }
 

@@ -44,15 +44,17 @@ export default async function InfluencerPage({ params }: { params: { id: string 
 
             {/* info */}
             <div className="flex-1 text-center lg:text-right">
-              {/* اسم المؤثر — شارة "موثّق" أصبحت أيقونة فقط على الصورة الشخصية (فوق)، من غير نص مكرر هنا */}
-              <h1 className="font-display text-3xl font-bold text-white sm:text-4xl">{inf.name}</h1>
+              {/* شارة "موثّق" (تحكم الإدارة) بقت أيقونة فقط على الصورة الشخصية فوق — هنا جنب
+                  الاسم شارة مختلفة: "موثوق" المشتقة من رقم رخصة منصة موثوق (إن وُجد). */}
+              <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+                <h1 className="font-display text-3xl font-bold text-white sm:text-4xl">{inf.name}</h1>
+                {inf.has_license && (
+                  <span className="badge-gold">
+                    <ShieldCheck className="h-3 w-3" /> موثوق
+                  </span>
+                )}
+              </div>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted lg:mx-0">{inf.bio}</p>
-
-              {inf.has_license && (
-                <span className="badge-gold mx-auto mt-2 lg:mx-0">
-                  <ShieldCheck className="h-3 w-3" /> موثوق
-                </span>
-              )}
 
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
                 <span className="glass flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-muted">

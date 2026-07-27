@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BadgeCheck, Eye, MapPin } from "lucide-react";
+import { BadgeCheck, ShieldCheck, Eye, MapPin } from "lucide-react";
 import { SOCIAL_META } from "./Icons";
 import { formatFollowers } from "@/lib/constants";
 import { incrementInfluencerStat } from "@/lib/actions";
@@ -47,9 +47,15 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
 
         <h3 className="mb-1 text-lg font-bold text-white">{inf.name}</h3>
 
-        <p className="mb-3 mt-2 line-clamp-2 text-xs leading-relaxed text-muted">{inf.bio}</p>
+        <p className="mb-2 mt-2 line-clamp-2 text-xs leading-relaxed text-muted">{inf.bio}</p>
 
-        <div className="mb-5 flex items-center gap-3 text-xs">
+        {inf.has_license && (
+          <span className="mb-3 flex items-center gap-0.5 rounded-full border border-gold/20 bg-gold/10 px-1.5 py-0.5 text-[10px] text-gold">
+            <ShieldCheck className="h-3 w-3" /> موثوق
+          </span>
+        )}
+
+        <div className="mb-5 mt-1 flex items-center gap-3 text-xs">
           <span className="flex items-center gap-1 text-muted">
             <MapPin className="h-3 w-3 text-gold" /> {inf.city}
           </span>
