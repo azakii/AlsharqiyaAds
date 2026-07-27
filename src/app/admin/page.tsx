@@ -8,7 +8,11 @@ import { supabaseEnabled, serviceRoleEnabled } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "لوحة الإدارة | إعلانات الشرقية" };
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: { tab?: string };
+}) {
   if (!isAdmin()) return <AdminLogin />;
 
   const [influencers, adRequests, stats, settings] = await Promise.all([
@@ -18,6 +22,10 @@ export default async function AdminPage() {
     getSettings(),
   ]);
 
+  const tabParam = searchParams?.tab;
+  const initialTab: "influencers" | "ads" | "settings" =
+    tabParam === "ads" || tabParam === "settings" ? tabParam : "influencers";
+
   return (
     <AdminDashboard
       influencers={influencers}
@@ -26,6 +34,7 @@ export default async function AdminPage() {
       settings={settings}
       demo={!supabaseEnabled}
       missingServiceRole={supabaseEnabled && !serviceRoleEnabled}
+      initialTab={initialTab}
     />
   );
 }

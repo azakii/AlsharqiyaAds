@@ -3,16 +3,22 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Menu, X, ShieldCheck, LogOut, Loader2 } from "lucide-react";
+import { Menu, X, ShieldCheck, LogOut, Loader2, Home } from "lucide-react";
 import Logo from "./Logo";
 import { formatFollowers } from "@/lib/constants";
 import { logout } from "@/lib/actions";
 import type { SiteSettings } from "@/lib/settings";
 
-// "لوحة الإدارة" لا تظهر في القائمة الظاهرة للعامة — الوصول لها عبر /admin مباشرة
 const LINKS = [
   { href: "/", label: "الرئيسية" },
   { href: "/#celebrities", label: "المشاهير" },
+];
+
+// لما يكون الأدمن مسجل دخول، القائمة الرئيسية تتحول لروابط لوحة التحكم مباشرة
+const ADMIN_LINKS = [
+  { href: "/admin?tab=influencers", label: "المؤثرون" },
+  { href: "/admin?tab=ads", label: "طلبات الإعلان" },
+  { href: "/admin?tab=settings", label: "إعدادات الموقع" },
 ];
 
 export interface NavUser {
@@ -35,6 +41,7 @@ export default function Navbar({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const links = admin ? ADMIN_LINKS : LINKS;
 
   async function handleAdminLogout() {
     setLoggingOut(true);
@@ -54,7 +61,7 @@ export default function Navbar({
 
         {/* Menu — column 2, centered */}
         <ul className="hidden items-center justify-center gap-8 md:flex">
-          {LINKS.map((l) => {
+          {links.map((l) => {
             const active = pathname === l.href;
             return (
               <li key={l.href}>
@@ -75,6 +82,14 @@ export default function Navbar({
           <div className="hidden items-center gap-3 md:flex">
             {admin ? (
               <>
+                <Link
+                  href="/"
+                  className="glass flex h-9 w-9 items-center justify-center rounded-full text-white/70 transition hover:text-gold"
+                  aria-label="الصفحة الرئيسية"
+                  title="الصفحة الرئيسية"
+                >
+                  <Home className="h-4 w-4" />
+                </Link>
                 <Link
                   href="/admin"
                   className="glass flex items-center gap-2 rounded-full py-1.5 pl-4 pr-3 text-xs font-semibold text-white/80 transition hover:text-gold"
@@ -140,7 +155,7 @@ export default function Navbar({
 
       {open && (
         <ul className="container-max flex flex-col gap-1 pb-4 md:hidden">
-          {LINKS.map((l) => (
+          {links.map((l) => (
             <li key={l.href}>
               <Link
                 href={l.href}
@@ -153,6 +168,15 @@ export default function Navbar({
           ))}
           {admin ? (
             <>
+              <li>
+                <Link
+                  href="/"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-white/80 hover:bg-white/5 hover:text-gold"
+                >
+                  <Home className="h-4 w-4 text-gold" /> الصفحة الرئيسية
+                </Link>
+              </li>
               <li>
                 <Link
                   href="/admin"

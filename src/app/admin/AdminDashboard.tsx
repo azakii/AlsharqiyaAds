@@ -3,11 +3,12 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, LogOut, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle, MoreVertical, CalendarDays,
+  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle, MoreVertical, CalendarDays, MessageCircle, Phone, ChevronRight, ChevronLeft, FilterX,
 } from "lucide-react";
 import { formatFollowers } from "@/lib/constants";
+import { normalizePhone } from "@/lib/validators";
 import {
-  setInfluencerStatus, deleteInfluencer, setAdRequestStatus, deleteAdRequest, logout,
+  setInfluencerStatus, deleteInfluencer, deleteAdRequest,
 } from "@/lib/actions";
 import SettingsForm from "./SettingsForm";
 import AddInfluencerModal from "./AddInfluencerModal";
@@ -16,12 +17,21 @@ import type { Stats } from "@/lib/data";
 import type { SiteSettings } from "@/lib/settings";
 
 type ActionResult = { ok: boolean; message?: string };
+type Tab = "influencers" | "ads" | "settings";
+
+const PAGE_SIZE = 10;
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "قيد المراجعة",
   approved: "مقبول",
   rejected: "مرفوض",
 };
+
+/** يحوّل رقم جوال سعودي (محلي أو دولي) لصيغة wa.me: 9665XXXXXXXX بدون + أو أصفار مقدمة. */
+function toWhatsAppNumber(phone: string): string {
+  const v = normalizePhone(phone).replace(/^\+/, "").replace(/^00/, "");
+  return v.startsWith("05") ? `966${v.slice(1)}` : v;
+}
 
 /** Western-digit DD/MM/YYYY, matches the site's convention of Latin numerals in an RTL UI. */
 function formatDate(iso?: string | null): string {
@@ -32,7 +42,7 @@ function formatDate(iso?: string | null): string {
 }
 
 export default function AdminDashboard({
-  influencers, adRequests, stats, settings, demo, missingServiceRole,
+  influencers, adRequests, stats, settings, demo, missingServiceRole, initialTab,
 }: {
   influencers: Influencer[];
   adRequests: AdRequest[];
@@ -40,9 +50,10 @@ export default function AdminDashboard({
   settings: SiteSettings;
   demo: boolean;
   missingServiceRole: boolean;
+  initialTab?: Tab;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"influencers" | "ads" | "settings">("influencers");
+  const [tab, setTabState] = useState<Tab>(initialTab || "influencers");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -50,6 +61,29 @@ export default function AdminDashboard({
   const [actionError, setActionError] = useState("");
   const [openMenu, setOpenMenu] = useState<{ id: string; top: number; left: number } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [infPage, setInfPage] = useState(1);
+  const [adPage, setAdPage] = useState(1);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // روابط الهيدر (المؤثرون/طلبات الإعلان/إعدادات الموقع) بتدخل بـ /admin?tab=... — لو الصفحة
+  // كانت أصلاً مفتوحة على /admin ومتغيرش الراوت، الكومبوننت بيفضل نفسه فقط الـ prop بيتحدث.
+  useEffect(() => {
+    if (initialTab) setTabState(initialTab);
+  }, [initialTab]);
+
+  function setTab(t: Tab) {
+    setTabState(t);
+    router.replace(`/admin?tab=${t}`, { scroll: false });
+  }
+
+  useEffect(() => {
+    setInfPage(1);
+  }, [q, statusFilter]);
+
+  useEffect(() => {
+    setAdPage(1);
+  }, [dateFrom, dateTo]);
 
   // Menu is rendered as a single fixed-position instance outside every row card (see below) —
   // each ".card" row has backdrop-filter, which creates its own stacking context in CSS and
@@ -93,6 +127,21 @@ export default function AdminDashboard({
     const ms = !statusFilter || i.status === statusFilter;
     return mq && ms;
   });
+  const infTotalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const infPageClamped = Math.min(infPage, infTotalPages);
+  const pagedInfluencers = filtered.slice((infPageClamped - 1) * PAGE_SIZE, infPageClamped * PAGE_SIZE);
+
+  const filteredAds = adRequests.filter((r) => {
+    if (!dateFrom && !dateTo) return true;
+    if (!r.created_at) return false;
+    const d = r.created_at.slice(0, 10);
+    if (dateFrom && d < dateFrom) return false;
+    if (dateTo && d > dateTo) return false;
+    return true;
+  });
+  const adTotalPages = Math.max(1, Math.ceil(filteredAds.length / PAGE_SIZE));
+  const adPageClamped = Math.min(adPage, adTotalPages);
+  const pagedAds = filteredAds.slice((adPageClamped - 1) * PAGE_SIZE, adPageClamped * PAGE_SIZE);
 
   return (
     <div className="container-max py-12">
@@ -105,9 +154,6 @@ export default function AdminDashboard({
         <div className="flex items-center gap-3">
           <button onClick={() => setShowAdd(true)} className="btn-gold">
             <Plus className="h-4 w-4" /> إضافة مؤثر
-          </button>
-          <button onClick={() => run(() => logout())} className="btn-outline">
-            <LogOut className="h-4 w-4" /> خروج
           </button>
         </div>
       </div>
@@ -164,9 +210,14 @@ export default function AdminDashboard({
       </div>
 
       {tab === "settings" ? (
-        <SettingsForm initial={settings} />
+        <>
+          <SectionTitle icon={<Settings className="h-5 w-5" />} title="تعديل إعدادات الموقع" />
+          <SettingsForm initial={settings} />
+        </>
       ) : tab === "influencers" ? (
         <>
+          <SectionTitle icon={<Users className="h-5 w-5" />} title="قائمة المؤثرين" />
+
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gold" />
@@ -181,7 +232,7 @@ export default function AdminDashboard({
           </div>
 
           <div className="mt-5 space-y-3">
-            {filtered.map((inf) => (
+            {pagedInfluencers.map((inf) => (
               <div key={inf.id} className="card flex flex-col items-start gap-4 p-4 sm:flex-row sm:items-center">
                 {/* DOM order avatar → info → controls: RTL renders avatar on the right, controls on the left */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -220,6 +271,8 @@ export default function AdminDashboard({
             ))}
             {filtered.length === 0 && <p className="py-10 text-center text-white/40">لا يوجد مؤثرون.</p>}
           </div>
+
+          <Pagination page={infPageClamped} totalPages={infTotalPages} onChange={setInfPage} />
 
           {/* قائمة الإجراءات — عنصر واحد مشترك خارج كل الكروت (position: fixed بإحداثيات
               الزر المضغوط)، عشان ما يتحبسش جوه stacking context الكارد (backdrop-filter). */}
@@ -283,43 +336,124 @@ export default function AdminDashboard({
           )}
         </>
       ) : (
-        <div className="mt-5 space-y-3">
-          {adRequests.map((r) => (
-            <div key={r.id} className="card p-5">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="text-right">
-                  <div className="flex items-center justify-start gap-2">
-                    <StatusPill status={r.status} />
-                    <span className="font-semibold text-white">{r.company_name}</span>
-                  </div>
-                  <div className="mt-1 text-xs text-white/45">
-                    المسؤول: {r.contact_name} • {r.category} • {r.city}
-                  </div>
-                  <div className="mt-1 text-xs text-white/45">المؤثر: {r.target_influencer || "غير محدد"}</div>
-                  <p className="mt-2 max-w-md text-xs text-white/60">{r.details}</p>
-                  <div className="mt-1 text-xs text-white/40">{r.phone} • {r.email}</div>
-                  <div className="mt-1 flex items-center justify-start gap-1 text-[11px] text-white/35">
-                    <CalendarDays className="h-3 w-3" /> تاريخ التسجيل: {formatDate(r.created_at)}
-                  </div>
-                </div>
-                <span className="font-display text-lg text-gold">{r.budget.toLocaleString("en")} ر.س</span>
-              </div>
-              <div className="mt-4 flex items-center justify-end gap-2">
-                <button onClick={() => run(() => setAdRequestStatus(r.id, "approved"))} className="inline-flex items-center gap-1 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs text-green-400 hover:bg-green-500/25" disabled={isPending}>
-                  <Check className="h-3.5 w-3.5" /> قبول
-                </button>
-                <button onClick={() => run(() => setAdRequestStatus(r.id, "rejected"))} className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10" disabled={isPending}>
-                  <X className="h-3.5 w-3.5" /> رفض
-                </button>
-                <button onClick={() => { if (confirm(`هل تريد حذف طلب ${r.company_name}؟`)) run(() => deleteAdRequest(r.id)); }} className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20" disabled={isPending}>
-                  <Trash2 className="h-3.5 w-3.5" /> حذف
-                </button>
-              </div>
+        <>
+          <SectionTitle icon={<Megaphone className="h-5 w-5" />} title="قائمة طلبات الإعلان" />
+
+          <div className="mt-5 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="field-label">من تاريخ</label>
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="field w-44" />
             </div>
-          ))}
-          {adRequests.length === 0 && <p className="py-10 text-center text-white/40">لا توجد طلبات إعلان.</p>}
-        </div>
+            <div>
+              <label className="field-label">إلى تاريخ</label>
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="field w-44" />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-3 text-xs font-semibold text-white/60 transition hover:text-gold"
+              >
+                <FilterX className="h-3.5 w-3.5" /> مسح الفلتر
+              </button>
+            )}
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {pagedAds.map((r) => (
+              <div key={r.id} className="card p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="text-right">
+                    <span className="font-semibold text-white">{r.company_name}</span>
+                    <div className="mt-1 text-xs text-white/45">
+                      المسؤول: {r.contact_name} • {r.category} • {r.city}
+                    </div>
+                    <div className="mt-1 text-xs text-white/45">المؤثر: {r.target_influencer || "غير محدد"}</div>
+                    <p className="mt-2 max-w-md text-xs text-white/60">{r.details}</p>
+                    <div className="mt-1 text-xs text-white/40">{r.phone} • {r.email}</div>
+                    <div className="mt-1 flex items-center justify-start gap-1 text-[11px] text-white/35">
+                      <CalendarDays className="h-3 w-3" /> تاريخ التسجيل: {formatDate(r.created_at)}
+                    </div>
+                  </div>
+                  <span className="font-display text-lg text-gold">{r.budget.toLocaleString("en")} ر.س</span>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                  <a
+                    href={`https://wa.me/${toWhatsAppNumber(r.phone)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs text-green-400 hover:bg-green-500/25"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" /> واتساب
+                  </a>
+                  <a
+                    href={`tel:${normalizePhone(r.phone)}`}
+                    className="inline-flex items-center gap-1 rounded-lg bg-gold/10 px-3 py-1.5 text-xs text-gold hover:bg-gold/20"
+                  >
+                    <Phone className="h-3.5 w-3.5" /> اتصال
+                  </a>
+                  <button onClick={() => { if (confirm(`هل تريد حذف طلب ${r.company_name}؟`)) run(() => deleteAdRequest(r.id)); }} className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20" disabled={isPending}>
+                    <Trash2 className="h-3.5 w-3.5" /> حذف
+                  </button>
+                </div>
+              </div>
+            ))}
+            {filteredAds.length === 0 && (
+              <p className="py-10 text-center text-white/40">
+                {adRequests.length === 0 ? "لا توجد طلبات إعلان." : "لا توجد طلبات مطابقة لفلتر التاريخ."}
+              </p>
+            )}
+          </div>
+
+          <Pagination page={adPageClamped} totalPages={adTotalPages} onChange={setAdPage} />
+        </>
       )}
+    </div>
+  );
+}
+
+function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
+  return (
+    <div className="mt-8 flex items-center gap-2 border-r-2 border-gold pr-3">
+      <span className="text-gold">{icon}</span>
+      <h2 className="font-display text-xl font-bold text-white">{title}</h2>
+    </div>
+  );
+}
+
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (p: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="mt-6 flex items-center justify-center gap-3">
+      <button
+        onClick={() => onChange(Math.max(1, page - 1))}
+        disabled={page <= 1}
+        className="glass flex h-9 w-9 items-center justify-center rounded-full text-white/70 transition hover:text-gold disabled:opacity-30"
+        aria-label="الصفحة السابقة"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+      <span className="text-xs text-white/60">
+        صفحة <span className="font-semibold text-white">{page}</span> من <span className="font-semibold text-white">{totalPages}</span>
+      </span>
+      <button
+        onClick={() => onChange(Math.min(totalPages, page + 1))}
+        disabled={page >= totalPages}
+        className="glass flex h-9 w-9 items-center justify-center rounded-full text-white/70 transition hover:text-gold disabled:opacity-30"
+        aria-label="الصفحة التالية"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
     </div>
   );
 }
