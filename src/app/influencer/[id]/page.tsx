@@ -31,8 +31,17 @@ export default async function InfluencerPage({ params }: { params: { id: string 
 
   // لو فُتحت الصفحة بالـ UUID وللمؤثر رابط صديق (slug) محفوظ، نوجّه بشكل دائم للرابط الصديق
   // (يوحّد الرابط الأساسي لمحركات البحث ويمنع ظهور نفس المحتوى تحت رابطين مختلفين).
-  if (inf.slug && params.id !== inf.slug) {
-    redirect(`/influencer/${inf.slug}`);
+  // params.id قد يصل مُرمّزاً (خصوصاً السلاق العربي) فنفكّه قبل المقارنة، وإلا نعمل تحويل
+  // لا نهائي لأن القيمة المُرمّزة لن تساوي أبداً inf.slug المُخزّن بدون ترميز.
+  let decodedId = params.id;
+  try {
+    decodedId = decodeURIComponent(params.id);
+  } catch {
+    // قيمة غير قابلة لفك الترميز — نكمل بالقيمة الخام.
+  }
+  if (inf.slug && decodedId !== inf.slug) {
+    // encodeURIComponent إجباري: سلاق عربي خام في هيدر Location يكسر الاستجابة (ERR_INVALID_CHAR).
+    redirect(`/influencer/${encodeURIComponent(inf.slug)}`);
   }
 
   const seo = await getSeoForPath(`/influencer/${inf.id}`);

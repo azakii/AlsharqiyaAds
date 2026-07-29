@@ -54,6 +54,13 @@ export async function getInfluencerByIdOrSlug(idOrSlug: string): Promise<Influen
   }
   const sb = getSupabase();
   if (!sb) return null;
+  // Next.js لا يفكّ ترميز الـ params في بعض الحالات (سلاق عربي)، فيوصل هنا كـ
+  // "%D9%81%D9%87..." بدل "فهد-العنزي" ويفشل التطابق مع القيمة المخزنة في القاعدة.
+  try {
+    idOrSlug = decodeURIComponent(idOrSlug);
+  } catch {
+    // قيمة غير قابلة لفك الترميز (نادر) — نكمل بالقيمة الخام.
+  }
   const column = UUID_RE.test(idOrSlug) ? "id" : "slug";
   const { data, error } = await sb.from("influencers").select("*").eq(column, idOrSlug).maybeSingle();
   if (error || !data) return null;
