@@ -28,6 +28,8 @@ export interface Influencer {
   /** مشتق آمن للعرض العام: هل يوجد رقم رخصة أم لا، بدون كشف الرقم نفسه. */
   has_license?: boolean;
   created_at?: string;
+  /** رابط صديق اختياري لصفحة المؤثر (/influencer/<slug>) بديل عن الـ UUID. */
+  slug?: string | null;
 }
 
 export type AdRequestStatus = "pending" | "approved" | "rejected";

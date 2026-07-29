@@ -22,6 +22,7 @@ const LINKS: NavLink[] = [
 const ADMIN_LINKS: NavLink[] = [
   { href: "/admin?tab=influencers", label: "المؤثرون", tab: "influencers" },
   { href: "/admin?tab=ads", label: "طلبات الإعلان", tab: "ads" },
+  { href: "/admin?tab=seo", label: "السيو", tab: "seo" },
   { href: "/admin?tab=settings", label: "إعدادات الموقع", tab: "settings" },
 ];
 

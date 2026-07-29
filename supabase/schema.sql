@@ -77,6 +77,55 @@ alter table public.influencers add column if not exists auth_user_id uuid refere
 create index if not exists influencers_auth_user_id_idx on public.influencers(auth_user_id);
 alter table public.influencers add column if not exists license_number text;
 
+-- رابط صديق (slug) اختياري لصفحة المؤثر العامة، بديل عن الـ UUID الطويل في الرابط
+alter table public.influencers add column if not exists slug text unique;
+create index if not exists influencers_slug_idx on public.influencers(slug);
+
+-- إعدادات السيو العامة للموقع (فافيكون، صورة مشاركة افتراضية، ديفولت العنوان/الوصف/الكلمات المفتاحية...)
+alter table public.site_settings add column if not exists favicon_url text;
+alter table public.site_settings add column if not exists default_og_image text;
+alter table public.site_settings add column if not exists default_meta_title text;
+alter table public.site_settings add column if not exists default_meta_description text;
+alter table public.site_settings add column if not exists default_meta_keywords text;
+alter table public.site_settings add column if not exists twitter_handle text;
+alter table public.site_settings add column if not exists google_site_verification text;
+alter table public.site_settings add column if not exists default_robots_index boolean default true;
+alter table public.site_settings add column if not exists default_robots_follow boolean default true;
+
+-- جدول إعدادات السيو لكل صفحة/مسار (الصفحات الثابتة + صفحة كل مؤثر + أي مسار مستقبلي)
+create table if not exists public.seo_pages (
+  id                    uuid primary key default gen_random_uuid(),
+  path                  text not null unique,
+  label                 text,
+  meta_title            text,
+  meta_description      text,
+  meta_keywords         text,
+  canonical_url         text,
+  og_title              text,
+  og_description        text,
+  og_image              text,
+  og_type               text default 'website',
+  twitter_card          text default 'summary_large_image',
+  twitter_title         text,
+  twitter_description   text,
+  twitter_image         text,
+  robots_index          boolean default true,
+  robots_follow         boolean default true,
+  structured_data       jsonb default '[]'::jsonb,
+  created_at            timestamptz default now(),
+  updated_at            timestamptz default now()
+);
+create index if not exists seo_pages_path_idx on public.seo_pages(path);
+alter table public.seo_pages enable row level security;
+
+-- إعدادات السيو تُقرأ من الجميع (لازم تُبنى بيها ميتاداتا الصفحات العامة وقت الطلب)
+drop policy if exists "public read seo_pages" on public.seo_pages;
+create policy "public read seo_pages"
+  on public.seo_pages for select
+  using (true);
+
+-- ملاحظة: الإضافة/التعديل/الحذف تتم فقط عبر مفتاح الخدمة من لوحة الإدارة (نفس نمط باقي الجداول).
+
 -- دالة زيادة العدادات (مشاهدات/نقرات/طلبات إعلان) بأمان وبدون تعارض عند الزيارات المتزامنة.
 -- تُستدعى فقط من السيرفر (عبر مفتاح الخدمة)، والقائمة البيضاء لأسماء الأعمدة تمنع أي حقن SQL.
 create or replace function public.increment_influencer_stat(influencer_id uuid, stat_column text)
@@ -102,21 +151,25 @@ alter table public.ad_requests enable row level security;
 alter table public.site_settings enable row level security;
 
 -- إعدادات الموقع تُقرأ من الجميع (لعرضها في الواجهة)
+drop policy if exists "public read settings" on public.site_settings;
 create policy "public read settings"
   on public.site_settings for select
   using (true);
 
 -- المؤثرون المقبولون فقط يظهرون للعامة
+drop policy if exists "public read approved influencers" on public.influencers;
 create policy "public read approved influencers"
   on public.influencers for select
   using (status = 'approved');
 
 -- أي زائر يستطيع إرسال طلب تسجيل (يبقى pending)
+drop policy if exists "anyone can submit influencer" on public.influencers;
 create policy "anyone can submit influencer"
   on public.influencers for insert
   with check (status = 'pending');
 
 -- أي زائر يستطيع إرسال طلب إعلان
+drop policy if exists "anyone can submit ad request" on public.ad_requests;
 create policy "anyone can submit ad request"
   on public.ad_requests for insert
   with check (true);

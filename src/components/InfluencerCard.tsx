@@ -12,7 +12,7 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
 
   return (
     <Link
-      href={`/influencer/${inf.id}`}
+      href={`/influencer/${inf.slug || inf.id}`}
       className="glass-card group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl"
     >
       {/* views badge */}

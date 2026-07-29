@@ -1,17 +1,41 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { BadgeCheck, ShieldCheck, MapPin, Eye, MousePointerClick, Megaphone, Users, ArrowLeft } from "lucide-react";
 import { SOCIAL_META, Whatsapp } from "@/components/Icons";
 import TrackedSocialLink from "@/components/TrackedSocialLink";
-import { getInfluencerById } from "@/lib/data";
+import StructuredData from "@/components/StructuredData";
+import { getInfluencerByIdOrSlug } from "@/lib/data";
 import { incrementInfluencerStat } from "@/lib/actions";
 import { formatFollowers } from "@/lib/constants";
+import { getSeoForPath, buildMetadata } from "@/lib/seo";
+import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const inf = await getInfluencerByIdOrSlug(params.id);
+  if (!inf || inf.status !== "approved") return {};
+  const [seo, settings] = await Promise.all([getSeoForPath(`/influencer/${inf.id}`), getSettings()]);
+  return buildMetadata({
+    path: `/influencer/${inf.slug || inf.id}`,
+    seo,
+    settings,
+    fallback: { title: `${inf.name} | ${settings.brand_name}`, description: inf.bio, image: inf.avatar_url },
+  });
+}
+
 export default async function InfluencerPage({ params }: { params: { id: string } }) {
-  const inf = await getInfluencerById(params.id);
+  const inf = await getInfluencerByIdOrSlug(params.id);
   if (!inf || inf.status !== "approved") notFound();
+
+  // لو فُتحت الصفحة بالـ UUID وللمؤثر رابط صديق (slug) محفوظ، نوجّه بشكل دائم للرابط الصديق
+  // (يوحّد الرابط الأساسي لمحركات البحث ويمنع ظهور نفس المحتوى تحت رابطين مختلفين).
+  if (inf.slug && params.id !== inf.slug) {
+    redirect(`/influencer/${inf.slug}`);
+  }
+
+  const seo = await getSeoForPath(`/influencer/${inf.id}`);
 
   // عداد مشاهدات — لا نوقف عرض الصفحة في انتظاره.
   incrementInfluencerStat(inf.id, "views").catch(() => {});
@@ -21,6 +45,7 @@ export default async function InfluencerPage({ params }: { params: { id: string 
 
   return (
     <div className="bg-gold-radial">
+      {seo && <StructuredData blocks={seo.structured_data} />}
       <div className="container-max py-14">
         {/* Hero card — DOM order avatar → info → buttons; RTL flex-row renders
             avatar on the right, buttons on the left, exactly like the reference. */}

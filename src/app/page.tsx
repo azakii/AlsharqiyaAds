@@ -1,22 +1,36 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { ArrowLeft, TrendingUp, MapPin, Users } from "lucide-react";
 import { Crown } from "@/components/Icons";
 import InfluencerCard from "@/components/InfluencerCard";
+import StructuredData from "@/components/StructuredData";
 import { getApprovedInfluencers } from "@/lib/data";
 import { getSettings } from "@/lib/settings";
+import { getSeoForPath, buildMetadata } from "@/lib/seo";
 import { formatFollowers } from "@/lib/constants";
 
 const HOME_PREVIEW_COUNT = 8;
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata(): Promise<Metadata> {
+  const [seo, settings] = await Promise.all([getSeoForPath("/"), getSettings()]);
+  return buildMetadata({
+    path: "/",
+    seo,
+    settings,
+    fallback: { title: settings.brand_name, description: settings.footer_about, image: settings.hero_image },
+  });
+}
+
 export default async function HomePage() {
-  const [influencers, s] = await Promise.all([getApprovedInfluencers(), getSettings()]);
+  const [influencers, s, seo] = await Promise.all([getApprovedInfluencers(), getSettings(), getSeoForPath("/")]);
   const totalFollowers = influencers.reduce((sum, i) => sum + i.followers, 0);
   const cities = new Set(influencers.map((i) => i.city)).size;
 
   return (
     <>
+      {seo && <StructuredData blocks={seo.structured_data} />}
       {/* Hero */}
       <section className="relative overflow-hidden">
         {s.hero_image && (
@@ -59,7 +73,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* معاينة المؤثرين — أول ٨ فقط (الأعلى متابعين، بترتيب getApprovedInfluencers)، والباقي في صفحة المشاهير الكاملة */}
+      {/* معاينة المؤثرين — أول ٨ فقط (الأحدث تسجيلاً، بترتيب getApprovedInfluencers)، والباقي في صفحة المشاهير الكاملة */}
       <section id="celebrities" className="container-max scroll-mt-24 py-20">
         <div className="text-center">
           <span className="badge-gold mx-auto">نخبة المؤثرين الموثّقين</span>

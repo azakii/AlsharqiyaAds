@@ -21,6 +21,16 @@ export interface SiteSettings {
   color_gold: string;
   color_gold_light: string;
   color_gold_dark: string;
+  // ---- سيو عام (ديفولت لأي صفحة ما لهاش إعداد سيو خاص بها) ----
+  favicon_url: string;
+  default_og_image: string;
+  default_meta_title: string;
+  default_meta_description: string;
+  default_meta_keywords: string;
+  twitter_handle: string;
+  google_site_verification: string;
+  default_robots_index: boolean;
+  default_robots_follow: boolean;
 }
 
 export const DEFAULT_SETTINGS: SiteSettings = {
@@ -45,7 +55,19 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   color_gold: "#D4A017",
   color_gold_light: "#F5D17E",
   color_gold_dark: "#B8860B",
+  favicon_url: "",
+  default_og_image: "",
+  default_meta_title: "",
+  default_meta_description: "",
+  default_meta_keywords: "",
+  twitter_handle: "",
+  google_site_verification: "",
+  default_robots_index: true,
+  default_robots_follow: true,
 };
+
+/** حقول boolean داخل SiteSettings — تحتاج معاملة خاصة في نماذج الحفظ (checkbox) بدل الحقول النصية. */
+export const BOOLEAN_SETTINGS_KEYS: (keyof SiteSettings)[] = ["default_robots_index", "default_robots_follow"];
 
 const KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof SiteSettings)[];
 

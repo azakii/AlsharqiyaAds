@@ -1,11 +1,27 @@
+import type { Metadata } from "next";
 import { Crown } from "@/components/Icons";
 import RegisterForm from "./RegisterForm";
+import StructuredData from "@/components/StructuredData";
+import { getSeoForPath, buildMetadata } from "@/lib/seo";
+import { getSettings } from "@/lib/settings";
 
-export const metadata = { title: "تسجيل كمؤثر | إعلانات الشرقية" };
+export const dynamic = "force-dynamic";
 
-export default function RegisterPage() {
+export async function generateMetadata(): Promise<Metadata> {
+  const [seo, settings] = await Promise.all([getSeoForPath("/register"), getSettings()]);
+  return buildMetadata({
+    path: "/register",
+    seo,
+    settings,
+    fallback: { title: `تسجيل كمؤثر | ${settings.brand_name}`, description: settings.footer_about },
+  });
+}
+
+export default async function RegisterPage() {
+  const seo = await getSeoForPath("/register");
   return (
     <div className="bg-gold-radial">
+      {seo && <StructuredData blocks={seo.structured_data} />}
       <div className="container-max py-16">
         <div className="mb-10 text-center">
           <span className="badge-gold mx-auto"><Crown className="h-3.5 w-3.5" /> انضم لنخبة المؤثرين</span>

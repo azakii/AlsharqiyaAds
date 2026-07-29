@@ -22,7 +22,7 @@ export async function getApprovedInfluencers(): Promise<Influencer[]> {
     .from("influencers")
     .select("*")
     .eq("status", "approved")
-    .order("followers", { ascending: false });
+    .order("created_at", { ascending: false });
   if (error) {
     console.error("getApprovedInfluencers:", error.message);
     return [];
@@ -37,6 +37,26 @@ export async function getInfluencerById(id: string): Promise<Influencer | null> 
   if (!sb) return null;
   const { data, error } = await sb.from("influencers").select("*").eq("id", id).single();
   if (error) return null;
+  return toPublicInfluencer(data as Influencer);
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Public: same as getInfluencerById but also resolves a friendly slug —
+ * used by the /influencer/[id] route so it accepts either a UUID or a slug.
+ */
+export async function getInfluencerByIdOrSlug(idOrSlug: string): Promise<Influencer | null> {
+  if (!supabaseEnabled) {
+    return (
+      MOCK_INFLUENCERS.find((i) => i.id === idOrSlug || i.slug === idOrSlug) ?? null
+    );
+  }
+  const sb = getSupabase();
+  if (!sb) return null;
+  const column = UUID_RE.test(idOrSlug) ? "id" : "slug";
+  const { data, error } = await sb.from("influencers").select("*").eq(column, idOrSlug).maybeSingle();
+  if (error || !data) return null;
   return toPublicInfluencer(data as Influencer);
 }
 

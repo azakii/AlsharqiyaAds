@@ -13,7 +13,7 @@ export interface UploadResult {
 }
 
 /** Uploads an image file to Supabase Storage and returns its public URL. */
-export async function uploadImage(formData: FormData): Promise<UploadResult> {
+export async function uploadImage(formData: FormData, folder: string = "avatars"): Promise<UploadResult> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, message: "لم يتم اختيار صورة." };
@@ -33,8 +33,9 @@ export async function uploadImage(formData: FormData): Promise<UploadResult> {
     return { ok: false, message: "رفع الصور يحتاج SUPABASE_SERVICE_ROLE_KEY في إعدادات البيئة." };
   }
 
+  const safeFolder = /^[a-z0-9_-]+$/i.test(folder) ? folder : "avatars";
   const ext = file.name.split(".").pop() || "jpg";
-  const path = `avatars/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const path = `${safeFolder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
   const { error } = await sb.storage.from(BUCKET).upload(path, buffer, {

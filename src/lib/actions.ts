@@ -5,8 +5,9 @@ import { revalidatePath } from "next/cache";
 import { getSupabase, getSupabaseAdmin, supabaseEnabled } from "./supabase";
 import { adminCreds, makeToken, ADMIN_COOKIE, isAdmin } from "./auth";
 import { makeUserToken, currentInfluencerId, USER_COOKIE } from "./userAuth";
-import { DEFAULT_SETTINGS, type SiteSettings } from "./settings";
+import { DEFAULT_SETTINGS, BOOLEAN_SETTINGS_KEYS, type SiteSettings } from "./settings";
 import { isSaudiPhone, SAUDI_PHONE_ERROR } from "./validators";
+import { slugify, type StructuredDataBlock } from "./seo-shared";
 import type { InfluencerStatus, AdRequestStatus } from "./types";
 
 // ---------- Public submissions ----------
@@ -354,6 +355,7 @@ export async function setVerified(id: string, verified: boolean) {
 }
 
 function influencerPayloadFromForm(formData: FormData) {
+  const rawSlug = String(formData.get("slug") || "").trim();
   return {
     name: String(formData.get("name") || ""),
     phone: String(formData.get("phone") || ""),
@@ -373,7 +375,15 @@ function influencerPayloadFromForm(formData: FormData) {
     license_number: String(formData.get("license_number") || "").trim() || null,
     verified: formData.get("verified") === "on" || formData.get("verified") === "true",
     status: (String(formData.get("status") || "approved") as InfluencerStatus) || "approved",
+    // رابط صديق اختياري لصفحة المؤثر — يُطهَّر دائماً عبر slugify قبل الحفظ، فريد على مستوى القاعدة.
+    slug: rawSlug ? slugify(rawSlug) : null,
   };
+}
+
+/** رسالة عربية موحّدة عند تصادم unique constraint (مثل slug مكرر) بدل رسالة Postgres الخام. */
+function friendlyDbError(error: { code?: string; message: string }, uniqueFieldMessage: string) {
+  if (error.code === "23505") return uniqueFieldMessage;
+  return error.message;
 }
 
 /** Admin-only: add an influencer directly from the dashboard (skips the public review queue). */
@@ -394,16 +404,22 @@ export async function adminCreateInfluencer(formData: FormData) {
   const sb = getSupabaseAdmin();
   if (!sb) return noServiceRoleError();
 
-  const { error } = await sb.from("influencers").insert({
-    ...payload,
-    views: 0,
-    clicks: 0,
-    ad_requests: 0,
-  });
-  if (error) return { ok: false, message: error.message };
+  const { data, error } = await sb
+    .from("influencers")
+    .insert({
+      ...payload,
+      views: 0,
+      clicks: 0,
+      ad_requests: 0,
+    })
+    .select("id")
+    .single();
+  if (error) {
+    return { ok: false, message: friendlyDbError(error, "هذا الرابط (Slug) مستخدم من قبل مؤثر آخر، اختر رابطاً مختلفاً.") };
+  }
   revalidatePath("/admin");
   revalidatePath("/");
-  return { ok: true, message: "تمت إضافة المؤثر بنجاح." };
+  return { ok: true, id: data.id as string, message: "تمت إضافة المؤثر بنجاح." };
 }
 
 /** Admin-only: edit an existing influencer's profile. */
@@ -425,7 +441,9 @@ export async function adminUpdateInfluencer(id: string, formData: FormData) {
   if (!sb) return noServiceRoleError();
 
   const { data, error } = await sb.from("influencers").update(payload).eq("id", id).select("id");
-  if (error) return { ok: false, message: error.message };
+  if (error) {
+    return { ok: false, message: friendlyDbError(error, "هذا الرابط (Slug) مستخدم من قبل مؤثر آخر، اختر رابطاً مختلفاً.") };
+  }
   if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
 
   revalidatePath("/admin");
@@ -527,9 +545,11 @@ export async function deleteAdRequest(id: string) {
 
 export async function saveSettings(formData: FormData) {
   await guard();
-  const payload: Record<string, string> = { id: "1" as unknown as string };
+  const payload: Record<string, string | boolean> = { id: "1" as unknown as string };
   (Object.keys(DEFAULT_SETTINGS) as (keyof SiteSettings)[]).forEach((k) => {
-    payload[k] = String(formData.get(k) ?? "");
+    // حقول boolean (زي robots) تُرسل كـ checkbox — لازم قيمة true/false فعلية، مش نص فاضي
+    // ("") ولا "on" الخام، وإلا عمود boolean في القاعدة يرفض القيمة.
+    payload[k] = BOOLEAN_SETTINGS_KEYS.includes(k) ? formData.get(k) === "on" : String(formData.get(k) ?? "");
   });
 
   if (!supabaseEnabled) {
@@ -542,4 +562,108 @@ export async function saveSettings(formData: FormData) {
   if (error) return { ok: false, message: error.message };
   revalidatePath("/", "layout");
   return { ok: true, message: "تم حفظ الإعدادات بنجاح." };
+}
+
+// ---------- SEO management ----------
+
+/** يتحقق أن قيمة النص إما فارغة، أو مسار نسبي يبدأ بـ /، أو رابط مطلق صالح. */
+function isValidUrlOrPath(v: string): boolean {
+  if (!v) return true;
+  if (v.startsWith("/")) return true;
+  try {
+    new URL(v);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Admin-only: إضافة أو تعديل إعدادات سيو لمسار معيّن (صفحة ثابتة، صفحة مؤثر، أو أي مسار). */
+export async function upsertSeoPage(formData: FormData) {
+  await guard();
+
+  const id = String(formData.get("id") || "").trim();
+  const path = String(formData.get("path") || "").trim();
+  if (!path || !path.startsWith("/")) {
+    return { ok: false, message: "المسار (Path) مطلوب ويجب أن يبدأ بـ /." };
+  }
+
+  const canonical = String(formData.get("canonical_url") || "").trim();
+  if (canonical && !isValidUrlOrPath(canonical)) {
+    return { ok: false, message: "رابط الـ Canonical غير صالح." };
+  }
+
+  const structuredData: StructuredDataBlock[] = [];
+  try {
+    const rawBlocks = JSON.parse(String(formData.get("structured_data_json") || "[]")) as {
+      label: string;
+      json: string;
+    }[];
+    for (const b of rawBlocks) {
+      if (!b.json || !b.json.trim()) continue;
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(b.json);
+      } catch {
+        return { ok: false, message: `كتلة Structured Data "${b.label || "بدون اسم"}" تحتوي JSON غير صالح.` };
+      }
+      structuredData.push({ label: b.label || "بدون اسم", data });
+    }
+  } catch {
+    return { ok: false, message: "تعذر قراءة بيانات Structured Data." };
+  }
+
+  const payload = {
+    path,
+    label: String(formData.get("label") || "").trim() || null,
+    meta_title: String(formData.get("meta_title") || "").trim() || null,
+    meta_description: String(formData.get("meta_description") || "").trim() || null,
+    meta_keywords: String(formData.get("meta_keywords") || "").trim() || null,
+    canonical_url: canonical || null,
+    og_title: String(formData.get("og_title") || "").trim() || null,
+    og_description: String(formData.get("og_description") || "").trim() || null,
+    og_image: String(formData.get("og_image") || "").trim() || null,
+    og_type: String(formData.get("og_type") || "website").trim() || "website",
+    twitter_card: String(formData.get("twitter_card") || "summary_large_image").trim() || "summary_large_image",
+    twitter_title: String(formData.get("twitter_title") || "").trim() || null,
+    twitter_description: String(formData.get("twitter_description") || "").trim() || null,
+    twitter_image: String(formData.get("twitter_image") || "").trim() || null,
+    robots_index: formData.get("robots_index") === "on",
+    robots_follow: formData.get("robots_follow") === "on",
+    structured_data: structuredData,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!supabaseEnabled) {
+    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — فعّل Supabase لحفظ التغييرات فعلياً)." };
+  }
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { error } = id
+    ? await sb.from("seo_pages").update(payload).eq("id", id)
+    : await sb.from("seo_pages").insert(payload);
+  if (error) {
+    return { ok: false, message: friendlyDbError(error, "هذا المسار مستخدم بالفعل في سجل سيو آخر.") };
+  }
+
+  revalidatePath(path);
+  revalidatePath("/admin");
+  return { ok: true, message: "تم حفظ إعدادات السيو بنجاح." };
+}
+
+/** Admin-only: حذف إعدادات سيو مسار معيّن (الصفحة بعدها ترجع تستخدم القيم الافتراضية بالكود). */
+export async function deleteSeoPage(id: string, path?: string) {
+  await guard();
+  if (!supabaseEnabled) return { ok: true, demo: true };
+  const sb = getSupabaseAdmin();
+  if (!sb) return noServiceRoleError();
+
+  const { data, error } = await sb.from("seo_pages").delete().eq("id", id).select("id");
+  if (error) return { ok: false, message: error.message };
+  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على السجل." };
+
+  if (path) revalidatePath(path);
+  revalidatePath("/admin");
+  return { ok: true, message: "تم حذف إعدادات السيو." };
 }

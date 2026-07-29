@@ -3,17 +3,23 @@
 import { useState } from "react";
 import { Save, Loader2, Check } from "lucide-react";
 import { saveSettings } from "@/lib/actions";
+import AvatarUploader from "@/components/AvatarUploader";
 import type { SiteSettings } from "@/lib/settings";
 
 export default function SettingsForm({ initial }: { initial: SiteSettings }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [faviconUrl, setFaviconUrl] = useState(initial.favicon_url);
+  const [defaultOgImage, setDefaultOgImage] = useState(initial.default_og_image);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setMsg(null);
-    const res = await saveSettings(new FormData(e.currentTarget));
+    const fd = new FormData(e.currentTarget);
+    fd.set("favicon_url", faviconUrl);
+    fd.set("default_og_image", defaultOgImage);
+    const res = await saveSettings(fd);
     setMsg({ ok: !!res.ok, text: res.message || (res.ok ? "تم الحفظ" : "خطأ") });
     setLoading(false);
   }
@@ -58,6 +64,28 @@ export default function SettingsForm({ initial }: { initial: SiteSettings }) {
         <Color name="color_gold_dark" label="الذهبي الغامق" def={initial.color_gold_dark} />
       </Group>
 
+      <div className="card p-6">
+        <h3 className="mb-4 border-r-2 border-gold pr-3 font-display text-gold">السيو العام (Default SEO)</h3>
+        <p className="mb-4 text-xs text-muted">
+          هذه القيم تُستخدم كاحتياطي لأي صفحة ما لهاش إعدادات سيو خاصة بها من تبويب &quot;السيو&quot;.
+        </p>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <AvatarUploader value={faviconUrl} onChange={setFaviconUrl} label="Favicon (أيقونة المتصفح)" folder="favicon" shape="square" />
+          <AvatarUploader value={defaultOgImage} onChange={setDefaultOgImage} label="صورة المشاركة الافتراضية (Default OG Image)" folder="seo" shape="square" />
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Text name="default_meta_title" label="Meta Title الافتراضي" def={initial.default_meta_title} />
+          <Text name="twitter_handle" label="حساب Twitter/X (مثال: @brand)" def={initial.twitter_handle} />
+          <Area name="default_meta_description" label="Meta Description الافتراضي" def={initial.default_meta_description} full />
+          <Text name="default_meta_keywords" label="الكلمات المفتاحية الافتراضية (مفصولة بفاصلة)" def={initial.default_meta_keywords} full />
+          <Text name="google_site_verification" label="Google Site Verification (اختياري)" def={initial.google_site_verification} full />
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Checkbox name="default_robots_index" label="السماح بفهرسة الموقع افتراضياً (Index)" def={initial.default_robots_index} />
+          <Checkbox name="default_robots_follow" label="تتبّع الروابط افتراضياً (Follow)" def={initial.default_robots_follow} />
+        </div>
+      </div>
+
       <div className="flex items-center gap-4">
         <button type="submit" disabled={loading} className="btn-gold disabled:opacity-60">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -97,6 +125,15 @@ function Area({ name, label, def, full }: { name: string; label: string; def: st
       <label className="field-label">{label}</label>
       <textarea name={name} defaultValue={def} rows={3} className="field resize-none" />
     </div>
+  );
+}
+
+function Checkbox({ name, label, def }: { name: string; label: string; def: boolean }) {
+  return (
+    <label className="glass flex cursor-pointer items-center justify-between rounded-xl px-4 py-3">
+      <span className="text-sm text-white/80">{label}</span>
+      <input type="checkbox" name={name} defaultChecked={def} className="h-5 w-5 accent-[rgb(212,160,23)]" />
+    </label>
   );
 }
 

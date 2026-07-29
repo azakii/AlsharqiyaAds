@@ -8,10 +8,14 @@ export default function AvatarUploader({
   value,
   onChange,
   label = "الصورة الشخصية",
+  folder = "avatars",
+  shape = "circle",
 }: {
   value: string;
   onChange: (url: string) => void;
   label?: string;
+  folder?: string;
+  shape?: "circle" | "square";
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
@@ -23,7 +27,7 @@ export default function AvatarUploader({
     setLoading(true);
     const fd = new FormData();
     fd.append("file", file);
-    const res = await uploadImage(fd);
+    const res = await uploadImage(fd, folder);
     setLoading(false);
     if (res.ok && res.url) {
       onChange(res.url);
@@ -32,6 +36,8 @@ export default function AvatarUploader({
     }
   }
 
+  const previewShape = shape === "circle" ? "h-28 w-28 rounded-full" : "h-28 w-28 rounded-xl";
+
   return (
     <div>
       <label className="field-label">{label}</label>
@@ -39,7 +45,7 @@ export default function AvatarUploader({
       {value ? (
         <div className="relative inline-block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt="معاينة" className="h-28 w-28 rounded-full border-2 border-gold/20 object-cover" />
+          <img src={value} alt="معاينة" className={`${previewShape} border-2 border-gold/20 object-cover`} />
           <button
             type="button"
             onClick={() => onChange("")}

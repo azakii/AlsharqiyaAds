@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle, MoreVertical, CalendarDays, MessageCircle, Phone, ChevronRight, ChevronLeft, FilterX, XCircle,
+  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle, MoreVertical, CalendarDays, MessageCircle, Phone, ChevronRight, ChevronLeft, FilterX, XCircle, Globe,
 } from "lucide-react";
 import { formatFollowers } from "@/lib/constants";
 import { normalizePhone } from "@/lib/validators";
@@ -12,12 +12,14 @@ import {
 } from "@/lib/actions";
 import SettingsForm from "./SettingsForm";
 import AddInfluencerModal from "./AddInfluencerModal";
+import SeoManager from "./SeoManager";
 import type { Influencer, AdRequest, InfluencerStatus } from "@/lib/types";
 import type { Stats } from "@/lib/data";
 import type { SiteSettings } from "@/lib/settings";
+import type { SeoPage } from "@/lib/seo-shared";
 
 type ActionResult = { ok: boolean; message?: string };
-type Tab = "influencers" | "ads" | "settings";
+type Tab = "influencers" | "ads" | "seo" | "settings";
 
 const PAGE_SIZE = 10;
 
@@ -42,12 +44,13 @@ function formatDate(iso?: string | null): string {
 }
 
 export default function AdminDashboard({
-  influencers, adRequests, stats, settings, demo, missingServiceRole, initialTab,
+  influencers, adRequests, stats, settings, seoPages, demo, missingServiceRole, initialTab,
 }: {
   influencers: Influencer[];
   adRequests: AdRequest[];
   stats: Stats;
   settings: SiteSettings;
+  seoPages: SeoPage[];
   demo: boolean;
   missingServiceRole: boolean;
   initialTab?: Tab;
@@ -211,6 +214,7 @@ export default function AdminDashboard({
       {(showAdd || editingInfluencer) && (
         <AddInfluencerModal
           influencer={editingInfluencer ?? undefined}
+          seo={editingInfluencer ? seoPages.find((s) => s.path === `/influencer/${editingInfluencer.id}`) ?? null : null}
           onClose={() => {
             setShowAdd(false);
             setEditingInfluencer(null);
@@ -250,6 +254,11 @@ export default function AdminDashboard({
         <>
           <SectionTitle icon={<Settings className="h-5 w-5" />} title="تعديل إعدادات الموقع" />
           <SettingsForm initial={settings} />
+        </>
+      ) : tab === "seo" ? (
+        <>
+          <SectionTitle icon={<Globe className="h-5 w-5" />} title="إدارة السيو (SEO)" />
+          <SeoManager seoPages={seoPages} />
         </>
       ) : tab === "influencers" ? (
         <>

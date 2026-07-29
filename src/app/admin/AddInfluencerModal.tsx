@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, ChevronDown, Wand2 } from "lucide-react";
 import { CITIES, CATEGORIES } from "@/lib/constants";
-import { adminCreateInfluencer, adminUpdateInfluencer } from "@/lib/actions";
+import { adminCreateInfluencer, adminUpdateInfluencer, upsertSeoPage } from "@/lib/actions";
 import { isSaudiPhone, SAUDI_PHONE_ERROR } from "@/lib/validators";
+import { slugify, type SeoPage } from "@/lib/seo-shared";
 import AvatarUploader from "@/components/AvatarUploader";
+import SeoFieldsEditor from "./SeoFieldsEditor";
 import type { Influencer } from "@/lib/types";
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -15,11 +17,25 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "rejected", label: "مرفوض" },
 ];
 
+/** هل الفورم فيه أي حقل سيو اتملى فعلاً؟ لو لأ، منحفظش صف seo_pages فاضي بلا داعي. */
+function hasSeoContent(fd: FormData): boolean {
+  const textFields = [
+    "meta_title", "meta_description", "meta_keywords", "canonical_url",
+    "og_title", "og_description", "og_image",
+    "twitter_title", "twitter_description", "twitter_image",
+  ];
+  if (textFields.some((f) => String(fd.get(f) || "").trim())) return true;
+  const blocks = String(fd.get("structured_data_json") || "[]");
+  return blocks !== "[]" && blocks !== "";
+}
+
 export default function AddInfluencerModal({
   influencer,
+  seo,
   onClose,
 }: {
   influencer?: Influencer;
+  seo?: SeoPage | null;
   onClose: () => void;
 }) {
   const isEdit = Boolean(influencer);
@@ -27,8 +43,10 @@ export default function AddInfluencerModal({
   const [name, setName] = useState(influencer?.name || "");
   const [phone, setPhone] = useState(influencer?.phone || "");
   const [avatarUrl, setAvatarUrl] = useState(influencer?.avatar_url || "");
+  const [slug, setSlug] = useState(influencer?.slug || "");
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [nameTouched, setNameTouched] = useState(false);
+  const [showSeo, setShowSeo] = useState(Boolean(seo));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -57,18 +75,45 @@ export default function AddInfluencerModal({
 
     const fd = new FormData(e.currentTarget);
     fd.set("avatar_url", avatarUrl);
+    fd.set("slug", slug);
 
-    const res = isEdit
-      ? await adminUpdateInfluencer(influencer!.id, fd)
-      : await adminCreateInfluencer(fd);
+    let id = influencer?.id;
+    if (isEdit) {
+      const res = await adminUpdateInfluencer(influencer!.id, fd);
+      if (!res.ok) {
+        setLoading(false);
+        setError(res.message || "حدث خطأ");
+        return;
+      }
+    } else {
+      const res = await adminCreateInfluencer(fd);
+      if (!res.ok) {
+        setLoading(false);
+        setError(res.message || "حدث خطأ");
+        return;
+      }
+      id = "id" in res ? res.id : undefined;
+    }
+
+    // حفظ إعدادات السيو الخاصة بهذا المؤثر (لو الأدمن عدّل فيها فعلاً) — بمسار ثابت مبني على
+    // الـ id (مش الـ slug) عشان الربط ما ينكسرش لو غيّر الأدمن الـ slug لاحقاً.
+    if (id && showSeo && hasSeoContent(fd)) {
+      fd.set("path", `/influencer/${id}`);
+      fd.set("label", name);
+      if (seo?.id) fd.set("id", seo.id);
+      else fd.delete("id");
+      const seoRes = await upsertSeoPage(fd);
+      if (!seoRes.ok) {
+        setLoading(false);
+        setError(`تم حفظ بيانات المؤثر، لكن تعذر حفظ إعدادات السيو: ${seoRes.message}`);
+        router.refresh();
+        return;
+      }
+    }
 
     setLoading(false);
-    if (res.ok) {
-      router.refresh();
-      onClose();
-    } else {
-      setError(res.message || "حدث خطأ");
-    }
+    router.refresh();
+    onClose();
   }
 
   return (
@@ -148,6 +193,29 @@ export default function AddInfluencerModal({
             <textarea name="bio" rows={3} defaultValue={influencer?.bio} className="modal-field resize-none" />
           </Field>
 
+          <Field label="الرابط الصديق (Slug) — يظهر في /influencer/<slug>">
+            <div className="flex items-center gap-2">
+              <input
+                name="slug"
+                dir="ltr"
+                value={slug}
+                onChange={(e) => setSlug(slugify(e.target.value))}
+                placeholder="اتركه فارغاً لاستخدام رابط عشوائي"
+                className="modal-field flex-1"
+              />
+              <button
+                type="button"
+                onClick={() => setSlug(slugify(name))}
+                disabled={!name.trim()}
+                className="glass flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-muted hover:text-gold disabled:opacity-40"
+                title="توليد من الاسم"
+                aria-label="توليد الرابط من الاسم"
+              >
+                <Wand2 className="h-4 w-4" />
+              </button>
+            </div>
+          </Field>
+
           <Field label="رقم رخصة منصة موثوق (خاص — لا يظهر إلا هنا)">
             <input
               name="license_number"
@@ -198,6 +266,22 @@ export default function AddInfluencerModal({
               className="h-5 w-5 accent-[rgb(212,160,23)]"
             />
           </label>
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowSeo((v) => !v)}
+              className="flex w-full items-center justify-between rounded-xl border border-line px-4 py-3 text-sm text-white/80 hover:text-gold"
+            >
+              إعدادات السيو الخاصة بهذا المؤثر (اختياري)
+              <ChevronDown className={`h-4 w-4 transition-transform ${showSeo ? "rotate-180" : ""}`} />
+            </button>
+            {showSeo && (
+              <div className="mt-4">
+                <SeoFieldsEditor initial={seo} ogImageFolder="seo" />
+              </div>
+            )}
+          </div>
 
           {error && <p className="text-center text-sm text-red-400">{error}</p>}
 
