@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getSupabase, getSupabaseAdmin, supabaseEnabled } from "./supabase";
 import { adminCreds, makeToken, ADMIN_COOKIE, isAdmin } from "./auth";
-import { makeUserToken, currentInfluencerId, USER_COOKIE } from "./userAuth";
+import { makeUserToken, USER_COOKIE } from "./userAuth";
 import { DEFAULT_SETTINGS, BOOLEAN_SETTINGS_KEYS, type SiteSettings } from "./settings";
 import { isSaudiPhone, SAUDI_PHONE_ERROR } from "./validators";
 import { slugify, type StructuredDataBlock } from "./seo-shared";
@@ -13,7 +13,11 @@ import type { InfluencerStatus, AdRequestStatus } from "./types";
 // ---------- Public submissions ----------
 
 export async function submitInfluencer(formData: FormData) {
+  const name = String(formData.get("name") || "").trim();
+  if (!name) return { ok: false, message: "الاسم الكامل مطلوب." };
+
   const phone = String(formData.get("phone") || "");
+  if (!phone) return { ok: false, message: "رقم الجوال مطلوب." };
   if (!isSaudiPhone(phone)) return { ok: false, message: SAUDI_PHONE_ERROR };
 
   const email = String(formData.get("email") || "").trim();
@@ -22,7 +26,7 @@ export async function submitInfluencer(formData: FormData) {
   if (password.length < 6) return { ok: false, message: "كلمة المرور يجب ألا تقل عن 6 أحرف." };
 
   const basePayload = {
-    name: String(formData.get("name") || ""),
+    name,
     phone,
     email,
     city: String(formData.get("city") || ""),
@@ -246,35 +250,6 @@ export async function requestPasswordReset(formData: FormData) {
   return { ok: true, message: genericMessage };
 }
 
-/** تغيير كلمة المرور من داخل صفحة "حسابي" — يتطلب معرفة كلمة المرور الحالية أولاً كتأكيد هوية. */
-export async function changePassword(formData: FormData) {
-  const uid = currentInfluencerId();
-  if (!uid) return { ok: false, message: "يجب تسجيل الدخول أولاً." };
-
-  const currentPassword = String(formData.get("current_password") || "");
-  const newPassword = String(formData.get("new_password") || "");
-  if (!currentPassword) return { ok: false, message: "أدخل كلمة المرور الحالية." };
-  if (newPassword.length < 6) return { ok: false, message: "كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف." };
-
-  if (!supabaseEnabled) return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي)." };
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data: inf } = await sb.from("influencers").select("email,auth_user_id").eq("id", uid).maybeSingle();
-  if (!inf || !inf.auth_user_id) return { ok: false, message: "تعذر العثور على حسابك." };
-
-  // نتأكد إن كلمة المرور الحالية صح قبل ما نغيّرها — بمحاولة تسجيل دخول فعلي بيها.
-  const anon = getSupabase();
-  if (!anon) return { ok: false, message: "تعذر الاتصال بالخادم." };
-  const { error: verifyError } = await anon.auth.signInWithPassword({ email: inf.email, password: currentPassword });
-  if (verifyError) return { ok: false, message: "كلمة المرور الحالية غير صحيحة." };
-
-  const { error } = await sb.auth.admin.updateUserById(inf.auth_user_id, { password: newPassword });
-  if (error) return { ok: false, message: error.message };
-
-  return { ok: true, message: "تم تغيير كلمة المرور بنجاح." };
-}
-
 // ---------- Admin mutations ----------
 // Every mutation below requires the SUPABASE_SERVICE_ROLE_KEY (getSupabaseAdmin only returns a
 // client when it's set — see supabase.ts). Without it, RLS blocks anon writes with zero rows
@@ -447,53 +422,6 @@ export async function adminUpdateInfluencer(id: string, formData: FormData) {
   if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
 
   revalidatePath("/admin");
-  revalidatePath("/");
-  return { ok: true, message: "تم حفظ التعديلات بنجاح." };
-}
-
-/** Fields an influencer may edit on their own profile — status/verified stay admin-only. */
-function selfPayloadFromForm(formData: FormData) {
-  return {
-    name: String(formData.get("name") || ""),
-    phone: String(formData.get("phone") || ""),
-    email: String(formData.get("email") || ""),
-    city: String(formData.get("city") || ""),
-    category: String(formData.get("category") || ""),
-    bio: String(formData.get("bio") || ""),
-    // followers متعمداً غير موجود هنا: المؤثر لا يملك صلاحية تعديل عدد المتابعين،
-    // هذه الخاصية حصرية للإدارة (راجع AccountForm.tsx).
-    avatar_url: String(formData.get("avatar_url") || ""),
-    socials: {
-      instagram: String(formData.get("instagram") || ""),
-      tiktok: String(formData.get("tiktok") || ""),
-      x: String(formData.get("x") || ""),
-      whatsapp: String(formData.get("whatsapp") || ""),
-      snapchat: String(formData.get("snapchat") || ""),
-    },
-    license_number: String(formData.get("license_number") || "").trim() || null,
-  };
-}
-
-/** Influencer-only: edit their own profile. Requires a valid sq_user session cookie. */
-export async function updateOwnProfile(formData: FormData) {
-  const uid = currentInfluencerId();
-  if (!uid) return { ok: false, message: "يجب تسجيل الدخول أولاً." };
-
-  const payload = selfPayloadFromForm(formData);
-  if (!payload.name || !payload.phone) return { ok: false, message: "الاسم ورقم الجوال مطلوبان." };
-  if (!isSaudiPhone(payload.phone)) return { ok: false, message: SAUDI_PHONE_ERROR };
-
-  if (!supabaseEnabled) {
-    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — فعّل Supabase لحفظ البيانات فعلياً)." };
-  }
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data, error } = await sb.from("influencers").update(payload).eq("id", uid).select("id");
-  if (error) return { ok: false, message: error.message };
-  if (!data || data.length === 0) return { ok: false, message: "تعذر العثور على ملفك الشخصي." };
-
-  revalidatePath("/account");
   revalidatePath("/");
   return { ok: true, message: "تم حفظ التعديلات بنجاح." };
 }
