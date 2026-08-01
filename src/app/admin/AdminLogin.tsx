@@ -56,9 +56,9 @@ export default function AdminLogin() {
             دخول
           </button>
 
-          <p className="text-center text-xs text-white/30">
+          {/* <p className="text-center text-xs text-white/30">
             بيانات الدخول الافتراضية: admin / Sharqiah@2026
-          </p>
+          </p> */}
         </form>
       </div>
     </div>
