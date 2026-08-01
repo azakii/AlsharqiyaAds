@@ -258,7 +258,7 @@ export default function AddInfluencerModal({
           </Row>
 
           <label className="glass flex cursor-pointer items-center justify-between rounded-xl px-4 py-3">
-            <span className="text-sm text-white/80">موثّق (تفعيل الشارة الذهبية)</span>
+            <span className="text-sm text-white/80">ملتزم (تفعيل الشارة الذهبية)</span>
             <input
               type="checkbox"
               name="verified"

@@ -42,7 +42,7 @@ export default function AccountForm({ influencer, supportWhatsapp }: { influence
 
       {influencer.verified && (
         <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-xs text-gold">
-          <BadgeCheck className="h-3.5 w-3.5" /> موثّق — شارة مضافة من الإدارة
+          <BadgeCheck className="h-3.5 w-3.5" /> ملتزم — شارة مضافة من الإدارة
         </span>
       )}
 

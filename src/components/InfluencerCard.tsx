@@ -21,14 +21,14 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
         <span className="text-[10px] text-muted sm:text-[11px]">{inf.views.toLocaleString("en")}</span>
       </div>
 
-      {/* verified badge: glow pulse + shimmer sweep — combined icon + "موثّق" label */}
+      {/* verified badge: glow pulse + shimmer sweep — combined icon + "ملتزم" label */}
       {inf.verified && (
         <div className="absolute top-2 right-2 z-10 max-w-[62%] sm:top-4 sm:right-4">
           <div className="relative">
             <div className="animate-glow-pulse absolute inset-0 rounded-full bg-gold/40 blur-md" />
             <div className="shimmer-badge relative flex items-center gap-1 rounded-full px-2 py-1 sm:px-2.5 sm:py-1.5">
               <BadgeCheck className="h-3 w-3 flex-shrink-0 text-bg" />
-              <span className="truncate text-[9px] font-semibold text-bg sm:text-[10px]">موثّق</span>
+              <span className="truncate text-[9px] font-semibold text-bg sm:text-[10px]">ملتزم</span>
             </div>
           </div>
         </div>

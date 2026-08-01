@@ -78,7 +78,7 @@ export default async function InfluencerPage({ params }: { params: { id: string 
 
             {/* info */}
             <div className="flex-1 text-center lg:text-right">
-              {/* شارة "موثّق" (تحكم الإدارة) بقت أيقونة فقط على الصورة الشخصية فوق — هنا جنب
+              {/* شارة "ملتزم" (تحكم الإدارة) بقت أيقونة فقط على الصورة الشخصية فوق — هنا جنب
                   الاسم شارة مختلفة: "موثوق" المشتقة من رقم رخصة منصة موثوق (إن وُجد). */}
               <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start">
                 <h1 className="font-display text-3xl font-bold text-white sm:text-4xl">{inf.name}</h1>
