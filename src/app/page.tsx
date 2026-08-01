@@ -86,7 +86,7 @@ export default async function HomePage() {
         {influencers.length === 0 ? (
           <p className="mt-10 text-center text-muted">لا يوجد مؤثرون حالياً.</p>
         ) : (
-          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
             {influencers.slice(0, HOME_PREVIEW_COUNT).map((inf) => (
               <InfluencerCard key={inf.id} inf={inf} />
             ))}
