@@ -126,7 +126,7 @@ export async function getStats(): Promise<Stats> {
   const approved = influencers.filter((i) => i.status === "approved");
   return {
     totalInfluencers: influencers.length,
-    pending: influencers.filter((i) => i.status === "pending").length,
+    pending: ads.filter((a) => a.status === "pending").length,
     reviewing: influencers.filter((i) => i.status === "pending").length,
     adRequests: ads.length,
     totalFollowers: approved.reduce((s, i) => s + (i.followers || 0), 0),
