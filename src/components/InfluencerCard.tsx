@@ -16,19 +16,18 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
       className="glass-card group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl"
     >
       {/* views badge */}
-      <div className="glass absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-full px-2 py-1 sm:top-4 sm:left-4 sm:px-3 sm:py-1.5">
+      {/* <div className="glass absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-full px-2 py-1 sm:top-4 sm:left-4 sm:px-3 sm:py-1.5">
         <Eye className="h-3 w-3 text-gold" />
         <span className="text-[10px] text-muted sm:text-[11px]">{inf.views.toLocaleString("en")}</span>
-      </div>
+      </div> */}
 
-      {/* verified badge: glow pulse + shimmer sweep — combined icon + "ملتزم" label */}
+      {/* verified badge: glow pulse + shimmer sweep — circular icon-only "ملتزم" mark */}
       {inf.verified && (
-        <div className="absolute top-2 right-2 z-10 max-w-[62%] sm:top-4 sm:right-4">
+        <div className="absolute top-2 right-2 z-10 sm:top-4 sm:right-4" title="ملتزم">
           <div className="relative">
             <div className="animate-glow-pulse absolute inset-0 rounded-full bg-gold/40 blur-md" />
-            <div className="shimmer-badge relative flex items-center gap-1 rounded-full px-2 py-1 sm:px-2.5 sm:py-1.5">
-              <BadgeCheck className="h-3 w-3 flex-shrink-0 text-bg" />
-              <span className="truncate text-[9px] font-semibold text-bg sm:text-[10px]">ملتزم</span>
+            <div className="shimmer-badge relative flex h-8 w-8 items-center justify-center rounded-full sm:h-9 sm:w-9">
+              <BadgeCheck className="h-4 w-4 flex-shrink-0 text-bg sm:h-5 sm:w-5" />
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowLeft, TrendingUp, MapPin, Users } from "lucide-react";
+import { ArrowLeft, TrendingUp, MapPin, Users, BadgeCheck } from "lucide-react";
 import { Crown } from "@/components/Icons";
 import InfluencerCard from "@/components/InfluencerCard";
 import StructuredData from "@/components/StructuredData";
@@ -10,6 +10,7 @@ import { getSeoForPath, buildMetadata } from "@/lib/seo";
 import { formatFollowers } from "@/lib/constants";
 
 const HOME_PREVIEW_COUNT = 8;
+const VERIFIED_PREVIEW_COUNT = 6;
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ export default async function HomePage() {
   const [influencers, s, seo] = await Promise.all([getApprovedInfluencers(), getSettings(), getSeoForPath("/")]);
   const totalFollowers = influencers.reduce((sum, i) => sum + i.followers, 0);
   const cities = new Set(influencers.map((i) => i.city)).size;
+  const verifiedInfluencers = influencers.filter((i) => i.verified);
+  const nonVerifiedInfluencers = influencers.filter((i) => !i.verified);
 
   return (
     <>
@@ -52,7 +55,7 @@ export default async function HomePage() {
             <span className="h-px w-12 bg-gold/40" />
           </div>
 
-          <h1 className="font-display text-6xl font-bold gold-text sm:text-7xl">{s.hero_title}</h1>
+          <h1 className="font-display text-6xl font-bold leading-[1.25] gold-text sm:text-7xl sm:leading-[1.25]">{s.hero_title}</h1>
 
           <p className="mt-6 max-w-2xl text-base leading-8 text-white/70">{s.hero_subtitle}</p>
 
@@ -73,6 +76,27 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* المشاهير الملتزمون — قسم مستقل لأصحاب شارة "ملتزم" فقط، بحد أقصى ٦ كاردس */}
+      {verifiedInfluencers.length > 0 && (
+        <section id="verified-celebrities" className="container-max scroll-mt-24 py-20">
+          <div className="text-center">
+            <span className="badge-gold mx-auto">
+              <BadgeCheck className="h-3.5 w-3.5" /> شارة الالتزام
+            </span>
+            <h2 className="mt-4 font-display text-4xl font-bold gold-text">المشاهير الملتزمون</h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm text-muted">
+              نخبة المشاهير الحاصلين على شارة الالتزام الذهبية من الإدارة
+            </p>
+          </div>
+
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+            {verifiedInfluencers.slice(0, VERIFIED_PREVIEW_COUNT).map((inf) => (
+              <InfluencerCard key={inf.id} inf={inf} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* معاينة المؤثرين — أول ٨ فقط (الأحدث تسجيلاً، بترتيب getApprovedInfluencers)، والباقي في صفحة المشاهير الكاملة */}
       <section id="celebrities" className="container-max scroll-mt-24 py-20">
         <div className="text-center">
@@ -83,17 +107,17 @@ export default async function HomePage() {
           </p>
         </div>
 
-        {influencers.length === 0 ? (
+        {nonVerifiedInfluencers.length === 0 ? (
           <p className="mt-10 text-center text-muted">لا يوجد مؤثرون حالياً.</p>
         ) : (
           <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-            {influencers.slice(0, HOME_PREVIEW_COUNT).map((inf) => (
+            {nonVerifiedInfluencers.slice(0, HOME_PREVIEW_COUNT).map((inf) => (
               <InfluencerCard key={inf.id} inf={inf} />
             ))}
           </div>
         )}
 
-        {influencers.length > HOME_PREVIEW_COUNT && (
+        {nonVerifiedInfluencers.length > HOME_PREVIEW_COUNT && (
           <div className="mt-10 flex justify-center">
             <Link href="/influencers" className="btn-gold">
               شاهد المزيد <ArrowLeft className="h-4 w-4" />

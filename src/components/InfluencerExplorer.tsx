@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, SlidersHorizontal, ChevronRight, ChevronLeft, ChevronDown, X, RotateCcw } from "lucide-react";
+import { Search, SlidersHorizontal, ChevronRight, ChevronLeft, ChevronDown, X, RotateCcw, BadgeCheck } from "lucide-react";
 import InfluencerCard from "./InfluencerCard";
 import { CITIES, CATEGORIES } from "@/lib/constants";
 import type { Influencer } from "@/lib/types";
@@ -22,9 +22,11 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
   const [category, setCategory] = useState("");
   const [followersLabel, setFollowersLabel] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [page, setPage] = useState(1);
 
   const minFollowers = FOLLOWER_RANGES.find((r) => r.label === followersLabel)?.min ?? 0;
+  const verifiedCount = useMemo(() => influencers.filter((i) => i.verified).length, [influencers]);
 
   const filtered = useMemo(() => {
     return influencers.filter((i) => {
@@ -36,13 +38,14 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
       const matchCity = !city || i.city === city;
       const matchCat = !category || i.category === category;
       const matchFollowers = i.followers >= minFollowers;
-      return matchQ && matchCity && matchCat && matchFollowers;
+      const matchVerified = !verifiedOnly || i.verified;
+      return matchQ && matchCity && matchCat && matchFollowers && matchVerified;
     });
-  }, [influencers, q, city, category, minFollowers]);
+  }, [influencers, q, city, category, minFollowers, verifiedOnly]);
 
   useEffect(() => {
     setPage(1);
-  }, [q, city, category, followersLabel]);
+  }, [q, city, category, followersLabel, verifiedOnly]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageClamped = Math.min(page, totalPages);
@@ -64,6 +67,28 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
         <p className="mx-auto mt-3 max-w-xl text-sm text-muted">
           ابحث وصفِّ النتائج حسب المدينة، التصنيف، وعدد المتابعين
         </p>
+      </div>
+
+      {/* تبويب: الكل مقابل الحاصلين على شارة "ملتزم" فقط */}
+      <div className="mx-auto mt-8 flex w-fit items-center gap-1 rounded-full border border-line bg-white/5 p-1">
+        <button
+          type="button"
+          onClick={() => setVerifiedOnly(false)}
+          className={`cursor-pointer rounded-full px-4 py-2 text-xs font-medium transition-colors sm:text-sm ${
+            !verifiedOnly ? "bg-gold text-bg" : "text-muted hover:text-white"
+          }`}
+        >
+          الكل ({influencers.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setVerifiedOnly(true)}
+          className={`flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition-colors sm:text-sm ${
+            verifiedOnly ? "bg-gold text-bg" : "text-muted hover:text-white"
+          }`}
+        >
+          <BadgeCheck className="h-3.5 w-3.5" />({verifiedCount})
+        </button>
       </div>
 
       {/* unified search pill */}
@@ -156,10 +181,11 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
       {filtered.length === 0 ? (
         <div className="mt-10 text-center">
           <p className="text-muted">لا توجد نتائج مطابقة للبحث.</p>
-          {(q || activeFilters > 0) && (
+          {(q || activeFilters > 0 || verifiedOnly) && (
             <button
               onClick={() => {
                 setQ("");
+                setVerifiedOnly(false);
                 resetFilters();
               }}
               className="btn-outline mx-auto mt-4 cursor-pointer"
