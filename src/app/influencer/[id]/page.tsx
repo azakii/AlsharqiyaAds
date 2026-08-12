@@ -101,9 +101,9 @@ export default async function InfluencerPage({ params }: { params: { id: string 
 
               <div className="mx-auto mt-6 grid max-w-lg grid-cols-4 gap-3 lg:mx-0">
                 <Stat icon={<Users />} value={formatFollowers(inf.followers)} label="متابع" />
-                <Stat icon={<Eye />} value={inf.views.toLocaleString("en")} label="مشاهدة" />
-                <Stat icon={<MousePointerClick />} value={String(inf.clicks)} label="نقرة" />
-                <Stat icon={<Megaphone />} value={String(inf.ad_requests)} label="طلب إعلان" />
+                {/* <Stat icon={<Eye />} value={inf.views.toLocaleString("en")} label="مشاهدة" />
+                <Stat icon={<MousePointerClick />} value={String(inf.clicks)} label="نقرة" /> */}
+                {/* <Stat icon={<Megaphone />} value={String(inf.ad_requests)} label="طلب إعلان" /> */}
               </div>
             </div>
 

@@ -167,8 +167,8 @@ function SeoPageModal({ path, seo, onClose }: { path: string; seo: SeoPage | nul
                 value={pathValue}
                 onChange={(e) => setPathValue(e.target.value)}
                 placeholder="/example"
-                disabled={Boolean(seo)}
-                className="field disabled:opacity-60"
+                readOnly={Boolean(seo)}
+                className="field read-only:opacity-60"
               />
             </div>
             <div>

@@ -10,7 +10,7 @@ import { getSeoForPath, buildMetadata } from "@/lib/seo";
 import { formatFollowers } from "@/lib/constants";
 
 const HOME_PREVIEW_COUNT = 8;
-const VERIFIED_PREVIEW_COUNT = 6;
+const VERIFIED_PREVIEW_COUNT = 8;
 
 export const dynamic = "force-dynamic";
 
@@ -71,21 +71,21 @@ export default async function HomePage() {
           <div className="mt-16 grid w-full max-w-2xl grid-cols-3 gap-6">
             <Stat icon={<TrendingUp />} value={formatFollowers(totalFollowers)} label="إجمالي المتابعين" />
             <Stat icon={<MapPin />} value={String(cities)} label="مدينة مغطّاة" />
-            <Stat icon={<Users />} value={String(influencers.length)} label="مؤثر موثّق" />
+            <Stat icon={<Users />} value={String(influencers.length)} label="مؤثر " />
           </div>
         </div>
       </section>
 
       {/* المشاهير الملتزمون — قسم مستقل لأصحاب شارة "ملتزم" فقط، بحد أقصى ٦ كاردس */}
       {verifiedInfluencers.length > 0 && (
-        <section id="verified-celebrities" className="container-max scroll-mt-24 py-20">
+        <section id="verified-celebrities" className="container-max scroll-mt-24 pt-20">
           <div className="text-center">
             <span className="badge-gold mx-auto">
-              <BadgeCheck className="h-3.5 w-3.5" /> شارة الالتزام
+              <BadgeCheck className="h-3.5 w-3.5" /> نخبة مشاهير البلوقرز
             </span>
-            <h2 className="mt-4 font-display text-4xl font-bold gold-text">المشاهير الملتزمون</h2>
+            <h2 className="mt-4 font-display text-4xl font-bold gold-text">اكتشف المشاهير</h2>
             <p className="mx-auto mt-3 max-w-xl text-sm text-muted">
-              نخبة المشاهير الحاصلين على شارة الالتزام الذهبية من الإدارة
+             تصفح نخبة من أفضل المؤثرين في المملكة
             </p>
           </div>
 
@@ -98,14 +98,7 @@ export default async function HomePage() {
       )}
 
       {/* معاينة المؤثرين — أول ٨ فقط (الأحدث تسجيلاً، بترتيب getApprovedInfluencers)، والباقي في صفحة المشاهير الكاملة */}
-      <section id="celebrities" className="container-max scroll-mt-24 py-20">
-        <div className="text-center">
-          <span className="badge-gold mx-auto">نخبة المؤثرين الموثّقين</span>
-          <h2 className="mt-4 font-display text-4xl font-bold gold-text">استكشف المؤثرين</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm text-muted">
-            تصفح نخبة من أفضل المؤثرين في المنطقة الشرقية
-          </p>
-        </div>
+      <section id="celebrities" className="container-max scroll-mt-24">
 
         {nonVerifiedInfluencers.length === 0 ? (
           <p className="mt-10 text-center text-muted">لا يوجد مؤثرون حالياً.</p>
