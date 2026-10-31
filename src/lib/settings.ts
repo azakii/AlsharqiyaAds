@@ -1,4 +1,4 @@
-import { getSupabase, supabaseEnabled } from "./supabase";
+import { dbEnabled, query } from "./db";
 
 const MEDIA = "https://media.base44.com/images/public/6a568a5faa72478f74107d31";
 
@@ -84,9 +84,12 @@ export function mergeSettings(row: Partial<SiteSettings> | null | undefined): Si
 }
 
 export async function getSettings(): Promise<SiteSettings> {
-  if (!supabaseEnabled) return DEFAULT_SETTINGS;
-  const sb = getSupabase();
-  if (!sb) return DEFAULT_SETTINGS;
-  const { data } = await sb.from("site_settings").select("*").eq("id", 1).maybeSingle();
-  return mergeSettings(data as Partial<SiteSettings>);
+  if (!dbEnabled) return DEFAULT_SETTINGS;
+  try {
+    const [row] = await query<Partial<SiteSettings>>("SELECT * FROM site_settings WHERE id = 1");
+    return mergeSettings(row);
+  } catch (e) {
+    console.error("getSettings:", e);
+    return DEFAULT_SETTINGS;
+  }
 }

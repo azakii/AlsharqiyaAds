@@ -2,7 +2,10 @@
 
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { getSupabase, getSupabaseAdmin, supabaseEnabled } from "./supabase";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
+import { dbEnabled, query, exec, transaction, isDuplicate } from "./db";
+import { sendMail } from "./mail";
 import { adminCreds, makeToken, ADMIN_COOKIE, isAdmin } from "./auth";
 import { makeUserToken, USER_COOKIE } from "./userAuth";
 import { DEFAULT_SETTINGS, BOOLEAN_SETTINGS_KEYS, type SiteSettings } from "./settings";
@@ -51,33 +54,29 @@ export async function submitInfluencer(formData: FormData) {
     ad_requests: 0,
   };
 
-  if (!supabaseEnabled) {
+  if (!dbEnabled) {
     return { ok: true, demo: true, message: "تم استلام الطلب (وضع تجريبي — لم يتم ربط قاعدة البيانات بعد)." };
   }
-  const sb = getSupabaseAdmin();
-  if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة حالياً (مفتاح الخدمة غير مُعد)." };
 
-  // ننشئ حساب الدخول (Supabase Auth) فور التسجيل حتى تكون كلمة المرور مُشفّرة من قِبل
-  // سبابيز مباشرة (بدون تخزينها عندنا)، لكن تسجيل الدخول الفعلي يبقى مرفوضاً من السيرفر
-  // (loginInfluencer) حتى توافق الإدارة على الطلب — راجع الملاحظة في schema.sql.
-  const { data: authData, error: authError } = await sb.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-  if (authError || !authData.user) {
-    const msg = authError?.message?.includes("already registered")
-      ? "هذا البريد الإلكتروني مسجّل بالفعل، جرّب تسجيل الدخول بدلاً من ذلك."
-      : authError?.message || "تعذر إنشاء حساب الدخول.";
-    return { ok: false, message: msg };
-  }
-
-  const payload = { ...basePayload, auth_user_id: authData.user.id };
-  const { error } = await sb.from("influencers").insert(payload);
-  if (error) {
-    // تراجع: احذف حساب الدخول اللي اتعمل عشان يقدر يسجل تاني بنفس البريد
-    await sb.auth.admin.deleteUser(authData.user.id);
-    return { ok: false, message: error.message };
+  // حساب الدخول يُنشأ فور التسجيل (كلمة المرور مُشفّرة bcrypt)، لكن تسجيل الدخول الفعلي يبقى
+  // مرفوضاً من السيرفر (loginInfluencer) حتى توافق الإدارة على الطلب.
+  const userId = crypto.randomUUID();
+  const { socials, license_number, ...cols } = basePayload;
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    await transaction(async (run) => {
+      await run("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [userId, email.toLowerCase(), hash]);
+      await run(
+        `INSERT INTO influencers (id, name, phone, email, city, category, bio, followers, avatar_url, verified, status,
+           views, clicks, ad_requests, socials, license_number, auth_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending', 0, 0, 0, ?, ?, ?)`,
+        [crypto.randomUUID(), cols.name, cols.phone, cols.email, cols.city, cols.category, cols.bio, cols.followers,
+         cols.avatar_url, JSON.stringify(socials), license_number, userId]
+      );
+    });
+  } catch (e) {
+    if (isDuplicate(e)) return { ok: false, message: "هذا البريد الإلكتروني مسجّل بالفعل، جرّب تسجيل الدخول بدلاً من ذلك." };
+    return { ok: false, message: (e as Error).message };
   }
   return {
     ok: true,
@@ -102,49 +101,48 @@ export async function submitAdRequest(formData: FormData) {
     status: "pending" as AdRequestStatus,
   };
 
-  if (!supabaseEnabled) {
+  if (!dbEnabled) {
     return { ok: true, demo: true, message: "تم استلام طلب الإعلان (وضع تجريبي — لم يتم ربط قاعدة البيانات بعد)." };
   }
-  const sb = getSupabaseAdmin();
-  if (!sb) return { ok: false, message: "قاعدة البيانات غير متاحة حالياً (مفتاح الخدمة غير مُعد)." };
-  const { error } = await sb.from("ad_requests").insert(payload);
-  if (error) return { ok: false, message: error.message };
+  try {
+    await exec(
+      `INSERT INTO ad_requests (id, company_name, contact_name, phone, email, category, city, details, budget, target_influencer, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [crypto.randomUUID(), payload.company_name, payload.contact_name, payload.phone, payload.email, payload.category,
+       payload.city, payload.details, payload.budget, payload.target_influencer, payload.status]
+    );
 
-  // نحاول نزوّد عداد "طلبات الإعلان" بتاع المؤثر المستهدف — target_influencer مخزّن كاسم
-  // نصي (من قائمة select في الفورم) مش id، فالمطابقة بالاسم أفضل حل متاح بالشكل الحالي.
-  // لو حابب تتبع أدق مستقبلاً، ينفع نحوّل الحقل ده لـ id بدل الاسم.
-  if (payload.target_influencer) {
-    const { data: match } = await sb
-      .from("influencers")
-      .select("id")
-      .ilike("name", payload.target_influencer.trim())
-      .maybeSingle();
-    if (match) {
-      await sb.rpc("increment_influencer_stat", { influencer_id: match.id, stat_column: "ad_requests" });
+    // نزوّد عداد "طلبات الإعلان" بتاع المؤثر المستهدف — target_influencer مخزّن كاسم نصي
+    // (من قائمة select في الفورم) مش id، فالمطابقة بالاسم أفضل حل متاح بالشكل الحالي.
+    if (payload.target_influencer) {
+      await exec("UPDATE influencers SET ad_requests = COALESCE(ad_requests, 0) + 1 WHERE name = ? LIMIT 1", [
+        payload.target_influencer.trim(),
+      ]);
     }
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
   }
 
   return { ok: true, message: "تم إرسال طلب الإعلان بنجاح، سنتواصل معك قريباً." };
 }
 
-/**
- * Public: bump a view/click/ad_requests counter. Runs via the service-role client since
- * anon-key writes are blocked by RLS on purpose — this is the one write visitors trigger
- * without being an admin or the profile owner, scoped to a safe atomic counter increment.
- */
+const STAT_COLUMNS = { views: "views", clicks: "clicks", ad_requests: "ad_requests" } as const;
+
+/** Public: atomically bump a view/click/ad_requests counter (the one write visitors trigger). */
 export async function incrementInfluencerStat(
   id: string,
   stat: "views" | "clicks" | "ad_requests"
 ): Promise<{ ok: boolean }> {
-  if (!supabaseEnabled) return { ok: true };
-  const sb = getSupabaseAdmin();
-  if (!sb) return { ok: false };
-  const { error } = await sb.rpc("increment_influencer_stat", { influencer_id: id, stat_column: stat });
-  if (error) {
-    console.error("incrementInfluencerStat:", error.message);
+  if (!dbEnabled) return { ok: true };
+  const col = STAT_COLUMNS[stat];
+  if (!col) return { ok: false };
+  try {
+    await exec(`UPDATE influencers SET ${col} = COALESCE(${col}, 0) + 1 WHERE id = ?`, [id]);
+    return { ok: true };
+  } catch (e) {
+    console.error("incrementInfluencerStat:", e);
     return { ok: false };
   }
-  return { ok: true };
 }
 
 // ---------- Admin auth ----------
@@ -177,25 +175,23 @@ export async function loginInfluencer(formData: FormData) {
   const password = String(formData.get("password") || "");
   if (!email || !password) return { ok: false, message: "البريد الإلكتروني وكلمة المرور مطلوبان." };
 
-  if (!supabaseEnabled) {
+  if (!dbEnabled) {
     return { ok: false, message: "تسجيل الدخول غير متاح حالياً (لم يتم ربط قاعدة البيانات بعد)." };
   }
 
-  const anon = getSupabase();
-  if (!anon) return { ok: false, message: "تعذر الاتصال بالخادم." };
-  const { data: authData, error: authError } = await anon.auth.signInWithPassword({ email, password });
-  if (authError || !authData.user) {
+  const [user] = await query<{ id: string; password_hash: string }>(
+    "SELECT id, password_hash FROM users WHERE email = ?",
+    [email.toLowerCase()]
+  );
+  // bcryptjs يقبل هاشات $2a$/$2b$ القادمة من Supabase Auth كما هي.
+  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     return { ok: false, message: "البريد الإلكتروني أو كلمة المرور غير صحيحة." };
   }
 
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data: inf } = await sb
-    .from("influencers")
-    .select("id,status")
-    .eq("auth_user_id", authData.user.id)
-    .maybeSingle();
+  const [inf] = await query<{ id: string; status: string }>(
+    "SELECT id, status FROM influencers WHERE auth_user_id = ?",
+    [user.id]
+  );
 
   if (!inf) return { ok: false, message: "لم يتم العثور على ملف مؤثر مرتبط بهذا الحساب." };
   if (inf.status !== "approved") {
@@ -227,56 +223,76 @@ function siteOrigin(): string {
   return `${proto}://${host}`;
 }
 
+const RESET_TTL_MS = 60 * 60 * 1000;
+const sha256 = (v: string) => crypto.createHash("sha256").update(v).digest("hex");
+
 /**
- * "نسيت كلمة المرور؟" — يرسل Supabase إيميل فيه رابط إعادة تعيين لو البريد مسجل فعلاً.
+ * "نسيت كلمة المرور؟" — يرسل إيميل فيه رابط إعادة تعيين (صالح ساعة) لو البريد مسجل فعلاً.
  * نرجّع رسالة نجاح ثابتة سواء كان البريد موجود أو لأ، عشان محدش يقدر يتأكد إن بريد معين مسجل عندنا.
  */
 export async function requestPasswordReset(formData: FormData) {
-  const email = String(formData.get("email") || "").trim();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
   if (!email) return { ok: false, message: "البريد الإلكتروني مطلوب." };
 
   const genericMessage = "لو البريد الإلكتروني مسجّل عندنا، وصلك رابط لإعادة تعيين كلمة المرور خلال دقائق.";
+  if (!dbEnabled) return { ok: true, message: genericMessage };
 
-  if (!supabaseEnabled) return { ok: true, message: genericMessage };
-  const anon = getSupabase();
-  if (!anon) return { ok: false, message: "تعذر الاتصال بالخادم." };
-
-  const { error } = await anon.auth.resetPasswordForEmail(email, {
-    redirectTo: `${siteOrigin()}/reset-password`,
-  });
-  // ما نكشفش تفاصيل الخطأ للمستخدم (زي "البريد غير موجود") حفاظاً على الخصوصية — بس نسجله في اللوج.
-  if (error) console.error("requestPasswordReset:", error.message);
-
+  try {
+    const token = crypto.randomBytes(32).toString("hex");
+    const n = await exec(
+      "UPDATE users SET reset_token_hash = ?, reset_expires = ? WHERE email = ?",
+      [sha256(token), new Date(Date.now() + RESET_TTL_MS).toISOString().slice(0, 19).replace("T", " "), email]
+    );
+    if (n > 0) {
+      await sendMail(
+        email,
+        "إعادة تعيين كلمة المرور",
+        `لإعادة تعيين كلمة المرور افتح الرابط التالي (صالح لمدة ساعة):\n${siteOrigin()}/reset-password?token=${token}`
+      );
+    }
+  } catch (e) {
+    // ما نكشفش تفاصيل الخطأ للمستخدم حفاظاً على الخصوصية — بس نسجله في اللوج.
+    console.error("requestPasswordReset:", e);
+  }
   return { ok: true, message: genericMessage };
 }
 
+/** يستهلك توكن إعادة التعيين (استخدام واحد) ويحفظ كلمة المرور الجديدة. */
+export async function resetPassword(token: string, password: string) {
+  if (password.length < 6) return { ok: false, message: "كلمة المرور يجب ألا تقل عن 6 أحرف." };
+  if (!dbEnabled || !token) return { ok: false, message: "الرابط غير صالح أو منتهي الصلاحية." };
+  const hash = await bcrypt.hash(password, 10);
+  const n = await exec(
+    `UPDATE users SET password_hash = ?, reset_token_hash = NULL, reset_expires = NULL
+     WHERE reset_token_hash = ? AND reset_expires > UTC_TIMESTAMP()`,
+    [hash, sha256(token)]
+  );
+  return n > 0 ? { ok: true } : { ok: false, message: "الرابط غير صالح أو منتهي الصلاحية." };
+}
+
 // ---------- Admin mutations ----------
-// Every mutation below requires the SUPABASE_SERVICE_ROLE_KEY (getSupabaseAdmin only returns a
-// client when it's set — see supabase.ts). Without it, RLS blocks anon writes with zero rows
-// affected and NO error, which used to make "accept/reject/delete" silently do nothing. Every
-// action here now returns an explicit, visible error instead of pretending to succeed.
+// Every mutation is gated by guard() (admin cookie) — this replaces the old RLS + service-role split.
+// Zero affected rows is reported as an explicit error instead of silently succeeding.
 
 async function guard() {
   if (!isAdmin()) throw new Error("unauthorized");
 }
 
-function noServiceRoleError() {
-  return {
-    ok: false,
-    message: "الإجراء فشل: مفتاح SUPABASE_SERVICE_ROLE_KEY غير مضاف في إعدادات البيئة (Vercel). أضفه ثم أعد النشر.",
-  };
+/** DB error -> message; duplicate-key errors get the caller's friendlier text. */
+function dbError(e: unknown, uniqueMessage?: string) {
+  if (uniqueMessage && isDuplicate(e)) return { ok: false, message: uniqueMessage };
+  return { ok: false, message: (e as Error).message };
 }
 
 export async function setInfluencerStatus(id: string, status: InfluencerStatus) {
   await guard();
-  if (!supabaseEnabled) return { ok: true, demo: true };
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data, error } = await sb.from("influencers").update({ status }).eq("id", id).select("id");
-  if (error) return { ok: false, message: error.message };
-  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر أو لا يوجد صلاحية للتعديل." };
-
+  if (!dbEnabled) return { ok: true, demo: true };
+  try {
+    const n = await exec("UPDATE influencers SET status = ? WHERE id = ?", [status, id]);
+    if (n === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
+  } catch (e) {
+    return dbError(e);
+  }
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true };
@@ -286,44 +302,43 @@ export async function setInfluencerStatus(id: string, status: InfluencerStatus) 
 export async function bulkSetInfluencerStatus(ids: string[], status: InfluencerStatus) {
   await guard();
   if (!ids || ids.length === 0) return { ok: false, message: "لم يتم تحديد أي مؤثر." };
-  if (!supabaseEnabled) return { ok: true, demo: true };
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data, error } = await sb.from("influencers").update({ status }).in("id", ids).select("id");
-  if (error) return { ok: false, message: error.message };
-
+  if (!dbEnabled) return { ok: true, demo: true };
+  let n: number;
+  try {
+    n = await exec("UPDATE influencers SET status = ? WHERE id IN (?)", [status, ids]);
+  } catch (e) {
+    return dbError(e);
+  }
   revalidatePath("/admin");
   revalidatePath("/");
-  return { ok: true, message: `تم تحديث حالة ${data?.length ?? 0} مؤثر.` };
+  return { ok: true, message: `تم تحديث حالة ${n} مؤثر.` };
 }
 
 /** إجراء مجمع: حذف عدة مؤثرين مرة واحدة. */
 export async function bulkDeleteInfluencers(ids: string[]) {
   await guard();
   if (!ids || ids.length === 0) return { ok: false, message: "لم يتم تحديد أي مؤثر." };
-  if (!supabaseEnabled) return { ok: true, demo: true };
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data, error } = await sb.from("influencers").delete().in("id", ids).select("id");
-  if (error) return { ok: false, message: error.message };
-
+  if (!dbEnabled) return { ok: true, demo: true };
+  let n: number;
+  try {
+    n = await exec("DELETE FROM influencers WHERE id IN (?)", [ids]);
+  } catch (e) {
+    return dbError(e);
+  }
   revalidatePath("/admin");
   revalidatePath("/");
-  return { ok: true, message: `تم حذف ${data?.length ?? 0} مؤثر.` };
+  return { ok: true, message: `تم حذف ${n} مؤثر.` };
 }
 
 export async function setVerified(id: string, verified: boolean) {
   await guard();
-  if (!supabaseEnabled) return { ok: true, demo: true };
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data, error } = await sb.from("influencers").update({ verified }).eq("id", id).select("id");
-  if (error) return { ok: false, message: error.message };
-  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
-
+  if (!dbEnabled) return { ok: true, demo: true };
+  try {
+    const n = await exec("UPDATE influencers SET verified = ? WHERE id = ?", [verified, id]);
+    if (n === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
+  } catch (e) {
+    return dbError(e);
+  }
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true };
@@ -355,71 +370,69 @@ function influencerPayloadFromForm(formData: FormData) {
   };
 }
 
-/** رسالة عربية موحّدة عند تصادم unique constraint (مثل slug مكرر) بدل رسالة Postgres الخام. */
-function friendlyDbError(error: { code?: string; message: string }, uniqueFieldMessage: string) {
-  if (error.code === "23505") return uniqueFieldMessage;
-  return error.message;
-}
+const SLUG_TAKEN = "هذا الرابط (Slug) مستخدم من قبل مؤثر آخر، اختر رابطاً مختلفاً.";
 
 /** Admin-only: add an influencer directly from the dashboard (skips the public review queue). */
 export async function adminCreateInfluencer(formData: FormData) {
   await guard();
-  const payload = influencerPayloadFromForm(formData);
+  const p = influencerPayloadFromForm(formData);
 
-  if (!payload.name || !payload.phone) {
+  if (!p.name || !p.phone) {
     return { ok: false, message: "الاسم ورقم الجوال مطلوبان." };
   }
-  if (!isSaudiPhone(payload.phone)) {
+  if (!isSaudiPhone(p.phone)) {
     return { ok: false, message: SAUDI_PHONE_ERROR };
   }
 
-  if (!supabaseEnabled) {
-    return { ok: true, demo: true, message: "تمت الإضافة (وضع تجريبي — فعّل Supabase لحفظ البيانات فعلياً)." };
+  if (!dbEnabled) {
+    return { ok: true, demo: true, message: "تمت الإضافة (وضع تجريبي — اربط قاعدة البيانات لحفظ البيانات فعلياً)." };
   }
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
 
-  const { data, error } = await sb
-    .from("influencers")
-    .insert({
-      ...payload,
-      views: 0,
-      clicks: 0,
-      ad_requests: 0,
-    })
-    .select("id")
-    .single();
-  if (error) {
-    return { ok: false, message: friendlyDbError(error, "هذا الرابط (Slug) مستخدم من قبل مؤثر آخر، اختر رابطاً مختلفاً.") };
+  const id = crypto.randomUUID();
+  try {
+    await exec(
+      `INSERT INTO influencers (id, name, phone, email, city, category, bio, followers, avatar_url, socials,
+         license_number, verified, status, slug, views, clicks, ad_requests)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0)`,
+      [id, p.name, p.phone, p.email, p.city, p.category, p.bio, p.followers, p.avatar_url, JSON.stringify(p.socials),
+       p.license_number, p.verified, p.status, p.slug]
+    );
+  } catch (e) {
+    return dbError(e, SLUG_TAKEN);
   }
   revalidatePath("/admin");
   revalidatePath("/");
-  return { ok: true, id: data.id as string, message: "تمت إضافة المؤثر بنجاح." };
+  return { ok: true, id, message: "تمت إضافة المؤثر بنجاح." };
 }
 
 /** Admin-only: edit an existing influencer's profile. */
 export async function adminUpdateInfluencer(id: string, formData: FormData) {
   await guard();
-  const payload = influencerPayloadFromForm(formData);
+  const p = influencerPayloadFromForm(formData);
 
-  if (!payload.name || !payload.phone) {
+  if (!p.name || !p.phone) {
     return { ok: false, message: "الاسم ورقم الجوال مطلوبان." };
   }
-  if (!isSaudiPhone(payload.phone)) {
+  if (!isSaudiPhone(p.phone)) {
     return { ok: false, message: SAUDI_PHONE_ERROR };
   }
 
-  if (!supabaseEnabled) {
-    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — فعّل Supabase لحفظ البيانات فعلياً)." };
+  if (!dbEnabled) {
+    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — اربط قاعدة البيانات لحفظ البيانات فعلياً)." };
   }
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
 
-  const { data, error } = await sb.from("influencers").update(payload).eq("id", id).select("id");
-  if (error) {
-    return { ok: false, message: friendlyDbError(error, "هذا الرابط (Slug) مستخدم من قبل مؤثر آخر، اختر رابطاً مختلفاً.") };
+  try {
+    const [row] = await query("SELECT id FROM influencers WHERE id = ?", [id]);
+    if (!row) return { ok: false, message: "لم يتم العثور على المؤثر." };
+    await exec(
+      `UPDATE influencers SET name=?, phone=?, email=?, city=?, category=?, bio=?, followers=?, avatar_url=?,
+         socials=?, license_number=?, verified=?, status=?, slug=? WHERE id = ?`,
+      [p.name, p.phone, p.email, p.city, p.category, p.bio, p.followers, p.avatar_url, JSON.stringify(p.socials),
+       p.license_number, p.verified, p.status, p.slug, id]
+    );
+  } catch (e) {
+    return dbError(e, SLUG_TAKEN);
   }
-  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
 
   revalidatePath("/admin");
   revalidatePath("/");
@@ -428,14 +441,13 @@ export async function adminUpdateInfluencer(id: string, formData: FormData) {
 
 export async function deleteInfluencer(id: string) {
   await guard();
-  if (!supabaseEnabled) return { ok: true, demo: true };
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data, error } = await sb.from("influencers").delete().eq("id", id).select("id");
-  if (error) return { ok: false, message: error.message };
-  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على المؤثر أو لا يوجد صلاحية للحذف." };
-
+  if (!dbEnabled) return { ok: true, demo: true };
+  try {
+    const n = await exec("DELETE FROM influencers WHERE id = ?", [id]);
+    if (n === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
+  } catch (e) {
+    return dbError(e);
+  }
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true };
@@ -443,28 +455,26 @@ export async function deleteInfluencer(id: string) {
 
 export async function setAdRequestStatus(id: string, status: AdRequestStatus) {
   await guard();
-  if (!supabaseEnabled) return { ok: true, demo: true };
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data, error } = await sb.from("ad_requests").update({ status }).eq("id", id).select("id");
-  if (error) return { ok: false, message: error.message };
-  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على الطلب." };
-
+  if (!dbEnabled) return { ok: true, demo: true };
+  try {
+    const n = await exec("UPDATE ad_requests SET status = ? WHERE id = ?", [status, id]);
+    if (n === 0) return { ok: false, message: "لم يتم العثور على الطلب." };
+  } catch (e) {
+    return dbError(e);
+  }
   revalidatePath("/admin");
   return { ok: true };
 }
 
 export async function deleteAdRequest(id: string) {
   await guard();
-  if (!supabaseEnabled) return { ok: true, demo: true };
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data, error } = await sb.from("ad_requests").delete().eq("id", id).select("id");
-  if (error) return { ok: false, message: error.message };
-  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على الطلب أو لا يوجد صلاحية للحذف." };
-
+  if (!dbEnabled) return { ok: true, demo: true };
+  try {
+    const n = await exec("DELETE FROM ad_requests WHERE id = ?", [id]);
+    if (n === 0) return { ok: false, message: "لم يتم العثور على الطلب." };
+  } catch (e) {
+    return dbError(e);
+  }
   revalidatePath("/admin");
   return { ok: true };
 }
@@ -473,21 +483,23 @@ export async function deleteAdRequest(id: string) {
 
 export async function saveSettings(formData: FormData) {
   await guard();
-  const payload: Record<string, string | boolean> = { id: "1" as unknown as string };
-  (Object.keys(DEFAULT_SETTINGS) as (keyof SiteSettings)[]).forEach((k) => {
-    // حقول boolean (زي robots) تُرسل كـ checkbox — لازم قيمة true/false فعلية، مش نص فاضي
-    // ("") ولا "on" الخام، وإلا عمود boolean في القاعدة يرفض القيمة.
-    payload[k] = BOOLEAN_SETTINGS_KEYS.includes(k) ? formData.get(k) === "on" : String(formData.get(k) ?? "");
-  });
+  const keys = Object.keys(DEFAULT_SETTINGS) as (keyof SiteSettings)[];
+  // حقول boolean (زي robots) تُرسل كـ checkbox — لازم قيمة true/false فعلية، مش نص فاضي أو "on" الخام.
+  const values = keys.map((k) => (BOOLEAN_SETTINGS_KEYS.includes(k) ? formData.get(k) === "on" : String(formData.get(k) ?? "")));
 
-  if (!supabaseEnabled) {
-    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — فعّل Supabase لحفظ التغييرات فعلياً)." };
+  if (!dbEnabled) {
+    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — اربط قاعدة البيانات لحفظ التغييرات فعلياً)." };
   }
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { error } = await sb.from("site_settings").upsert({ ...payload, id: 1 });
-  if (error) return { ok: false, message: error.message };
+  try {
+    // keys come from DEFAULT_SETTINGS (a constant), never from user input.
+    await exec(
+      `INSERT INTO site_settings (id, ${keys.join(", ")}) VALUES (1, ${keys.map(() => "?").join(", ")})
+       ON DUPLICATE KEY UPDATE ${keys.map((k) => `${k} = VALUES(${k})`).join(", ")}`,
+      values
+    );
+  } catch (e) {
+    return dbError(e);
+  }
   revalidatePath("/", "layout");
   return { ok: true, message: "تم حفظ الإعدادات بنجاح." };
 }
@@ -559,20 +571,25 @@ export async function upsertSeoPage(formData: FormData) {
     robots_index: formData.get("robots_index") === "on",
     robots_follow: formData.get("robots_follow") === "on",
     structured_data: structuredData,
-    updated_at: new Date().toISOString(),
   };
 
-  if (!supabaseEnabled) {
-    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — فعّل Supabase لحفظ التغييرات فعلياً)." };
+  if (!dbEnabled) {
+    return { ok: true, demo: true, message: "تم الحفظ (وضع تجريبي — اربط قاعدة البيانات لحفظ التغييرات فعلياً)." };
   }
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
 
-  const { error } = id
-    ? await sb.from("seo_pages").update(payload).eq("id", id)
-    : await sb.from("seo_pages").insert(payload);
-  if (error) {
-    return { ok: false, message: friendlyDbError(error, "هذا المسار مستخدم بالفعل في سجل سيو آخر.") };
+  const cols = Object.keys(payload) as (keyof typeof payload)[];
+  const vals = cols.map((c) => (c === "structured_data" ? JSON.stringify(payload[c]) : payload[c]));
+  try {
+    if (id) {
+      await exec(`UPDATE seo_pages SET ${cols.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`, [...vals, id]);
+    } else {
+      await exec(`INSERT INTO seo_pages (id, ${cols.join(", ")}) VALUES (?, ${cols.map(() => "?").join(", ")})`, [
+        crypto.randomUUID(),
+        ...vals,
+      ]);
+    }
+  } catch (e) {
+    return dbError(e, "هذا المسار مستخدم بالفعل في سجل سيو آخر.");
   }
 
   revalidatePath(path);
@@ -583,13 +600,13 @@ export async function upsertSeoPage(formData: FormData) {
 /** Admin-only: حذف إعدادات سيو مسار معيّن (الصفحة بعدها ترجع تستخدم القيم الافتراضية بالكود). */
 export async function deleteSeoPage(id: string, path?: string) {
   await guard();
-  if (!supabaseEnabled) return { ok: true, demo: true };
-  const sb = getSupabaseAdmin();
-  if (!sb) return noServiceRoleError();
-
-  const { data, error } = await sb.from("seo_pages").delete().eq("id", id).select("id");
-  if (error) return { ok: false, message: error.message };
-  if (!data || data.length === 0) return { ok: false, message: "لم يتم العثور على السجل." };
+  if (!dbEnabled) return { ok: true, demo: true };
+  try {
+    const n = await exec("DELETE FROM seo_pages WHERE id = ?", [id]);
+    if (n === 0) return { ok: false, message: "لم يتم العثور على السجل." };
+  } catch (e) {
+    return dbError(e);
+  }
 
   if (path) revalidatePath(path);
   revalidatePath("/admin");

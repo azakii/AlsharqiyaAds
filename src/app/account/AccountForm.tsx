@@ -7,6 +7,7 @@ import { logoutInfluencer } from "@/lib/actions";
 import { normalizePhone } from "@/lib/validators";
 import { Whatsapp } from "@/components/Icons";
 import type { Influencer } from "@/lib/types";
+import { Avatar } from "@/components/Avatar";
 
 export default function AccountForm({ influencer, supportWhatsapp }: { influencer: Influencer; supportWhatsapp: string }) {
   const router = useRouter();
@@ -74,14 +75,12 @@ export default function AccountForm({ influencer, supportWhatsapp }: { influence
         </div>
 
         <div className="flex items-center gap-4">
-          {influencer.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={influencer.avatar_url} alt={influencer.name} className="h-16 w-16 rounded-full object-cover" />
-          ) : (
-            <div className="grid h-16 w-16 place-items-center rounded-full bg-white/5 text-white/30">
-              {influencer.name.slice(0, 1)}
-            </div>
-          )}
+          <Avatar
+            src={influencer.avatar_url}
+            name={influencer.name}
+            textClass="text-xl"
+            className="h-16 w-16 rounded-full object-cover"
+          />
           <div>
             <div className="font-display text-lg font-bold text-white">{influencer.name}</div>
             <div className="text-xs text-white/45">{influencer.category}</div>

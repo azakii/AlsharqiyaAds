@@ -5,7 +5,7 @@ import { isAdmin } from "@/lib/auth";
 import { getAllInfluencers, getAllAdRequests, getStats } from "@/lib/data";
 import { getSettings } from "@/lib/settings";
 import { getAllSeoPages, getSeoForPath, buildMetadata } from "@/lib/seo";
-import { supabaseEnabled, serviceRoleEnabled } from "@/lib/supabase";
+import { dbEnabled } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -46,8 +46,7 @@ export default async function AdminPage({
       stats={stats}
       settings={settings}
       seoPages={seoPages}
-      demo={!supabaseEnabled}
-      missingServiceRole={supabaseEnabled && !serviceRoleEnabled}
+      demo={!dbEnabled}
       initialTab={initialTab}
     />
   );

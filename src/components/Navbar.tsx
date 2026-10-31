@@ -8,6 +8,7 @@ import Logo from "./Logo";
 import { formatFollowers } from "@/lib/constants";
 import { logout } from "@/lib/actions";
 import type { SiteSettings } from "@/lib/settings";
+import { Avatar } from "./Avatar";
 
 type NavLink = { href: string; label: string; tab?: string };
 
@@ -128,10 +129,10 @@ export default function Navbar({
                   href="/account"
                   className="glass flex items-center gap-2 rounded-full py-1.5 pl-4 pr-1.5 transition hover:text-gold"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={user.avatar_url || "/avatar-placeholder.svg"}
-                    alt={user.name}
+                  <Avatar
+                    src={user.avatar_url}
+                    name={user.name}
+                    textClass="text-xs"
                     className="h-8 w-8 rounded-full border border-gold/30 object-cover"
                   />
                   <span className="text-right leading-tight">

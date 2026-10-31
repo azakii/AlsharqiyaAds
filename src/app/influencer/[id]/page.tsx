@@ -10,6 +10,7 @@ import { incrementInfluencerStat } from "@/lib/actions";
 import { formatFollowers } from "@/lib/constants";
 import { getSeoForPath, buildMetadata } from "@/lib/seo";
 import { getSettings } from "@/lib/settings";
+import { Avatar } from "@/components/Avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -63,10 +64,10 @@ export default async function InfluencerPage({ params }: { params: { id: string 
             {/* avatar */}
             <div className="relative flex-shrink-0">
               <div className="absolute inset-0 rounded-full bg-gold/30 blur-2xl" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={inf.avatar_url || "/avatar-placeholder.svg"}
-                alt={inf.name}
+              <Avatar
+                src={inf.avatar_url}
+                name={inf.name}
+                textClass="text-5xl"
                 className="relative h-36 w-36 rounded-full border-4 border-gold/20 object-cover sm:h-44 sm:w-44"
               />
               {inf.verified && (

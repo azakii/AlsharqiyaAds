@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import type { Metadata } from "next";
-import { getSupabase, supabaseEnabled } from "./supabase";
+import { dbEnabled, query, parseJson } from "./db";
 import type { SiteSettings } from "./settings";
 import { type SeoPage, type StructuredDataBlock } from "./seo-shared";
 
@@ -19,8 +19,9 @@ export function siteOrigin(): string {
 
 function normalizeRow(row: Record<string, unknown>): SeoPage {
   let structured: StructuredDataBlock[] = [];
-  if (Array.isArray(row.structured_data)) {
-    structured = (row.structured_data as unknown[]).filter(
+  const sd = parseJson<unknown>(row.structured_data, []);
+  if (Array.isArray(sd)) {
+    structured = (sd as unknown[]).filter(
       (b): b is StructuredDataBlock =>
         typeof b === "object" && b !== null && "data" in (b as Record<string, unknown>)
     );
@@ -49,24 +50,27 @@ function normalizeRow(row: Record<string, unknown>): SeoPage {
   };
 }
 
-/** قراءة عامة (anon) لصف سيو مسار معيّن — يُستخدم من generateMetadata في كل صفحة عامة. */
+/** قراءة عامة لصف سيو مسار معيّن — يُستخدم من generateMetadata في كل صفحة عامة. */
 export async function getSeoForPath(path: string): Promise<SeoPage | null> {
-  if (!supabaseEnabled) return null;
-  const sb = getSupabase();
-  if (!sb) return null;
-  const { data, error } = await sb.from("seo_pages").select("*").eq("path", path).maybeSingle();
-  if (error || !data) return null;
-  return normalizeRow(data);
+  if (!dbEnabled) return null;
+  try {
+    const [row] = await query("SELECT * FROM seo_pages WHERE path = ?", [path]);
+    return row ? normalizeRow(row) : null;
+  } catch (e) {
+    console.error("getSeoForPath:", e);
+    return null;
+  }
 }
 
 /** لوحة الإدارة: كل صفوف السيو المحفوظة، مرتبة بالأحدث تعديلاً. */
 export async function getAllSeoPages(): Promise<SeoPage[]> {
-  if (!supabaseEnabled) return [];
-  const sb = getSupabase();
-  if (!sb) return [];
-  const { data, error } = await sb.from("seo_pages").select("*").order("updated_at", { ascending: false });
-  if (error || !data) return [];
-  return (data as Record<string, unknown>[]).map(normalizeRow);
+  if (!dbEnabled) return [];
+  try {
+    return (await query("SELECT * FROM seo_pages ORDER BY updated_at DESC")).map(normalizeRow);
+  } catch (e) {
+    console.error("getAllSeoPages:", e);
+    return [];
+  }
 }
 
 interface BuildMetadataArgs {

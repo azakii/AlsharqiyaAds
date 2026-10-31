@@ -16,3 +16,5 @@ tsconfig.tsbuildinfo
 build.done
 home.html
 .env*
+/uploads
+.env.hostinger

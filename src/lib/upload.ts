@@ -1,10 +1,16 @@
 "use server";
 
-import { getSupabaseAdmin, supabaseEnabled } from "./supabase";
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
+import { UPLOAD_DIR } from "./uploads";
 
-const BUCKET = "media";
 const MAX_BYTES = 5 * 1024 * 1024; // 5MB
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const EXT_BY_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
 
 export interface UploadResult {
   ok: boolean;
@@ -12,38 +18,27 @@ export interface UploadResult {
   message?: string;
 }
 
-/** Uploads an image file to Supabase Storage and returns its public URL. */
+/** Saves an image under UPLOAD_DIR and returns its public URL (served by app/uploads/[...path]). */
 export async function uploadImage(formData: FormData, folder: string = "avatars"): Promise<UploadResult> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, message: "لم يتم اختيار صورة." };
   }
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  const ext = EXT_BY_TYPE[file.type];
+  if (!ext) {
     return { ok: false, message: "صيغة الصورة غير مدعومة (JPG, PNG, WEBP, GIF فقط)." };
   }
   if (file.size > MAX_BYTES) {
     return { ok: false, message: "حجم الصورة كبير جداً (الحد الأقصى 5 ميجابايت)." };
   }
 
-  if (!supabaseEnabled) {
-    return { ok: false, message: "قاعدة البيانات غير مربوطة بعد — لا يمكن رفع الصور في الوضع التجريبي." };
-  }
-  const sb = getSupabaseAdmin();
-  if (!sb) {
-    return { ok: false, message: "رفع الصور يحتاج SUPABASE_SERVICE_ROLE_KEY في إعدادات البيئة." };
-  }
-
   const safeFolder = /^[a-z0-9_-]+$/i.test(folder) ? folder : "avatars";
-  const ext = file.name.split(".").pop() || "jpg";
-  const path = `${safeFolder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  const { error } = await sb.storage.from(BUCKET).upload(path, buffer, {
-    contentType: file.type,
-    upsert: false,
-  });
-  if (error) return { ok: false, message: `فشل رفع الصورة: ${error.message}` };
-
-  const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
-  return { ok: true, url: data.publicUrl };
+  const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  try {
+    await mkdir(path.join(UPLOAD_DIR, safeFolder), { recursive: true });
+    await writeFile(path.join(UPLOAD_DIR, safeFolder, name), Buffer.from(await file.arrayBuffer()));
+  } catch (e) {
+    return { ok: false, message: `فشل رفع الصورة: ${(e as Error).message}` };
+  }
+  return { ok: true, url: `/uploads/${safeFolder}/${name}` };
 }

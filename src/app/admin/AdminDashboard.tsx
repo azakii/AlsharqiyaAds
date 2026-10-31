@@ -17,6 +17,7 @@ import type { Influencer, AdRequest, InfluencerStatus } from "@/lib/types";
 import type { Stats } from "@/lib/data";
 import type { SiteSettings } from "@/lib/settings";
 import type { SeoPage } from "@/lib/seo-shared";
+import { Avatar } from "@/components/Avatar";
 
 type ActionResult = { ok: boolean; message?: string };
 type Tab = "influencers" | "ads" | "seo" | "settings";
@@ -44,7 +45,7 @@ function formatDate(iso?: string | null): string {
 }
 
 export default function AdminDashboard({
-  influencers, adRequests, stats, settings, seoPages, demo, missingServiceRole, initialTab,
+  influencers, adRequests, stats, settings, seoPages, demo, initialTab,
 }: {
   influencers: Influencer[];
   adRequests: AdRequest[];
@@ -52,7 +53,6 @@ export default function AdminDashboard({
   settings: SiteSettings;
   seoPages: SeoPage[];
   demo: boolean;
-  missingServiceRole: boolean;
   initialTab?: Tab;
 }) {
   const router = useRouter();
@@ -224,14 +224,7 @@ export default function AdminDashboard({
 
       {demo && (
         <p className="mt-6 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-center text-xs text-gold">
-          وضع تجريبي — لم يتم ربط قاعدة البيانات بعد. الإجراءات لن تُحفظ حتى تضيف مفاتيح Supabase.
-        </p>
-      )}
-
-      {!demo && missingServiceRole && (
-        <p className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-xs text-red-300">
-          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-          مفتاح SUPABASE_SERVICE_ROLE_KEY غير مضاف — القبول/الرفض/الحذف/التعديل ورفع الصور لن تعمل، وحتى عرض المؤثرين غير الموافق عليهم لن يظهر، حتى تضيف المفتاح في إعدادات البيئة على Vercel.
+          وضع تجريبي — لم يتم ربط قاعدة البيانات بعد. الإجراءات لن تُحفظ حتى تضبط متغيرات DB_* في إعدادات البيئة.
         </p>
       )}
 
@@ -336,10 +329,10 @@ export default function AdminDashboard({
                   onChange={() => toggleSelect(inf.id)}
                   aria-label={`تحديد ${inf.name}`}
                 />
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={inf.avatar_url || "/avatar-placeholder.svg"}
-                  alt={inf.name}
+                <Avatar
+                  src={inf.avatar_url}
+                  name={inf.name}
+                  textClass="text-lg"
                   className="h-14 w-14 flex-shrink-0 rounded-full border-2 border-gold/20 object-cover"
                 />
 

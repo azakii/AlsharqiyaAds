@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Lock, Loader2, Check, AlertTriangle, ArrowLeft } from "lucide-react";
-import { getSupabase } from "@/lib/supabase";
+import { resetPassword } from "@/lib/actions";
 
 type Status = "checking" | "ready" | "invalid" | "saving" | "success";
 
@@ -12,38 +12,12 @@ export default function ResetPasswordForm() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
 
-  // Supabase بيوصل بطريقتين حسب إعدادات المشروع: كود PKCE في ?code=... أو توكن مباشر في
-  // الـ hash (#access_token=...&type=recovery). الأولى محتاجة exchangeCodeForSession صراحةً،
-  // والتانية supabase-js بيعالجها لوحده عند إنشاء العميل (detectSessionInUrl الافتراضي).
+  // التوكن في ?token=... — صلاحيته تتحقق على السيرفر وقت الحفظ (استخدام واحد، ساعة).
+  const [token, setToken] = useState("");
   useEffect(() => {
-    const supabase = getSupabase();
-    if (!supabase) {
-      setStatus("invalid");
-      return;
-    }
-
-    let active = true;
-
-    async function init() {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      if (code) {
-        const { error } = await supabase!.auth.exchangeCodeForSession(code);
-        if (!active) return;
-        if (error) {
-          setStatus("invalid");
-          return;
-        }
-      }
-      const { data } = await supabase!.auth.getSession();
-      if (!active) return;
-      setStatus(data.session ? "ready" : "invalid");
-    }
-
-    init();
-    return () => {
-      active = false;
-    };
+    const t = new URLSearchParams(window.location.search).get("token") || "";
+    setToken(t);
+    setStatus(t ? "ready" : "invalid");
   }, []);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -58,14 +32,12 @@ export default function ResetPasswordForm() {
       return;
     }
     setStatus("saving");
-    const supabase = getSupabase();
-    const { error: updateError } = await supabase!.auth.updateUser({ password });
-    if (updateError) {
-      setError(updateError.message || "تعذر تحديث كلمة المرور.");
+    const res = await resetPassword(token, password);
+    if (!res.ok) {
+      setError(res.message || "تعذر تحديث كلمة المرور.");
       setStatus("ready");
       return;
     }
-    await supabase!.auth.signOut();
     setStatus("success");
   }
 

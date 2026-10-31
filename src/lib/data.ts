@@ -1,4 +1,4 @@
-import { getSupabase, getSupabaseAdmin, supabaseEnabled } from "./supabase";
+import { dbEnabled, query, parseJson } from "./db";
 import { MOCK_INFLUENCERS, MOCK_AD_REQUESTS } from "./mock";
 import type { Influencer, AdRequest } from "./types";
 
@@ -8,6 +8,10 @@ import type { Influencer, AdRequest } from "./types";
  * columns, so this application-layer step is what actually keeps the raw license number
  * out of anything sent to the browser on public pages.
  */
+function fromRow(row: Influencer): Influencer {
+  return { ...row, socials: parseJson(row.socials, {}) };
+}
+
 function toPublicInfluencer(row: Influencer & { license_number?: string | null }): Influencer {
   const { license_number, ...rest } = row;
   return { ...rest, has_license: Boolean(license_number) };
@@ -15,29 +19,21 @@ function toPublicInfluencer(row: Influencer & { license_number?: string | null }
 
 /** Public: only approved influencers, for the site grid + profiles. */
 export async function getApprovedInfluencers(): Promise<Influencer[]> {
-  if (!supabaseEnabled) return MOCK_INFLUENCERS.filter((i) => i.status === "approved");
-  const sb = getSupabase();
-  if (!sb) return [];
-  const { data, error } = await sb
-    .from("influencers")
-    .select("*")
-    .eq("status", "approved")
-    .order("created_at", { ascending: false });
-  if (error) {
-    console.error("getApprovedInfluencers:", error.message);
+  if (!dbEnabled) return MOCK_INFLUENCERS.filter((i) => i.status === "approved");
+  try {
+    const rows = await query<Influencer>("SELECT * FROM influencers WHERE status = 'approved' ORDER BY created_at DESC");
+    return rows.map((r) => toPublicInfluencer(fromRow(r)));
+  } catch (e) {
+    console.error("getApprovedInfluencers:", e);
     return [];
   }
-  return ((data as Influencer[]) ?? []).map(toPublicInfluencer);
 }
 
 /** Public: single influencer for the profile page — never exposes the raw license number. */
 export async function getInfluencerById(id: string): Promise<Influencer | null> {
-  if (!supabaseEnabled) return MOCK_INFLUENCERS.find((i) => i.id === id) ?? null;
-  const sb = getSupabase();
-  if (!sb) return null;
-  const { data, error } = await sb.from("influencers").select("*").eq("id", id).single();
-  if (error) return null;
-  return toPublicInfluencer(data as Influencer);
+  if (!dbEnabled) return MOCK_INFLUENCERS.find((i) => i.id === id) ?? null;
+  const [row] = await query<Influencer>("SELECT * FROM influencers WHERE id = ?", [id]);
+  return row ? toPublicInfluencer(fromRow(row)) : null;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -47,13 +43,11 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * used by the /influencer/[id] route so it accepts either a UUID or a slug.
  */
 export async function getInfluencerByIdOrSlug(idOrSlug: string): Promise<Influencer | null> {
-  if (!supabaseEnabled) {
+  if (!dbEnabled) {
     return (
       MOCK_INFLUENCERS.find((i) => i.id === idOrSlug || i.slug === idOrSlug) ?? null
     );
   }
-  const sb = getSupabase();
-  if (!sb) return null;
   // Next.js لا يفكّ ترميز الـ params في بعض الحالات (سلاق عربي)، فيوصل هنا كـ
   // "%D9%81%D9%87..." بدل "فهد-العنزي" ويفشل التطابق مع القيمة المخزنة في القاعدة.
   try {
@@ -62,9 +56,8 @@ export async function getInfluencerByIdOrSlug(idOrSlug: string): Promise<Influen
     // قيمة غير قابلة لفك الترميز (نادر) — نكمل بالقيمة الخام.
   }
   const column = UUID_RE.test(idOrSlug) ? "id" : "slug";
-  const { data, error } = await sb.from("influencers").select("*").eq(column, idOrSlug).maybeSingle();
-  if (error || !data) return null;
-  return toPublicInfluencer(data as Influencer);
+  const [row] = await query<Influencer>(`SELECT * FROM influencers WHERE ${column} = ?`, [idOrSlug]);
+  return row ? toPublicInfluencer(fromRow(row)) : null;
 }
 
 /**
@@ -73,43 +66,33 @@ export async function getInfluencerByIdOrSlug(idOrSlug: string): Promise<Influen
  * ownership via the signed sq_user session cookie before calling this.
  */
 export async function getOwnInfluencerProfile(id: string): Promise<Influencer | null> {
-  if (!supabaseEnabled) return MOCK_INFLUENCERS.find((i) => i.id === id) ?? null;
-  const sb = getSupabaseAdmin();
-  if (!sb) return null;
-  const { data, error } = await sb.from("influencers").select("*").eq("id", id).single();
-  if (error) return null;
-  return data as Influencer;
+  if (!dbEnabled) return MOCK_INFLUENCERS.find((i) => i.id === id) ?? null;
+  const [row] = await query<Influencer>("SELECT * FROM influencers WHERE id = ?", [id]);
+  return row ? fromRow(row) : null;
 }
 
 /**
- * Admin: every influencer regardless of status. Must use the service-role client —
- * the RLS policy "public read approved influencers" only allows the anon key to see
- * status='approved' rows. Using the anon key here silently hid pending/rejected rows
- * from the admin dashboard entirely (e.g. rejecting someone made them "disappear").
+ * Admin: every influencer regardless of status. Callers (admin/page.tsx) gate this behind isAdmin().
  */
 export async function getAllInfluencers(): Promise<Influencer[]> {
-  if (!supabaseEnabled) return MOCK_INFLUENCERS;
-  const sb = getSupabaseAdmin();
-  if (!sb) return [];
-  const { data, error } = await sb.from("influencers").select("*").order("created_at", { ascending: false });
-  if (error) {
-    console.error("getAllInfluencers:", error.message);
+  if (!dbEnabled) return MOCK_INFLUENCERS;
+  try {
+    return (await query<Influencer>("SELECT * FROM influencers ORDER BY created_at DESC")).map(fromRow);
+  } catch (e) {
+    console.error("getAllInfluencers:", e);
     return [];
   }
-  return (data as Influencer[]) ?? [];
 }
 
-/** Admin: every ad request. Same reasoning as getAllInfluencers — needs the service role. */
+/** Admin: every ad request. Admin-gated by the caller, like getAllInfluencers. */
 export async function getAllAdRequests(): Promise<AdRequest[]> {
-  if (!supabaseEnabled) return MOCK_AD_REQUESTS;
-  const sb = getSupabaseAdmin();
-  if (!sb) return [];
-  const { data, error } = await sb.from("ad_requests").select("*").order("created_at", { ascending: false });
-  if (error) {
-    console.error("getAllAdRequests:", error.message);
+  if (!dbEnabled) return MOCK_AD_REQUESTS;
+  try {
+    return await query<AdRequest>("SELECT * FROM ad_requests ORDER BY created_at DESC");
+  } catch (e) {
+    console.error("getAllAdRequests:", e);
     return [];
   }
-  return (data as AdRequest[]) ?? [];
 }
 
 export interface Stats {

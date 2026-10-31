@@ -6,6 +6,7 @@ import { SOCIAL_META } from "./Icons";
 import { formatFollowers } from "@/lib/constants";
 import { incrementInfluencerStat } from "@/lib/actions";
 import type { Influencer } from "@/lib/types";
+import { Avatar } from "./Avatar";
 
 export default function InfluencerCard({ inf }: { inf: Influencer }) {
   const socials = Object.entries(inf.socials).filter(([, v]) => v);
@@ -38,10 +39,10 @@ export default function InfluencerCard({ inf }: { inf: Influencer }) {
         <div className="relative mb-3 h-32 w-32 sm:mb-5 sm:h-28 sm:w-28">
           <div className="absolute inset-0 rounded-full bg-gold/20 blur-2xl transition-all duration-500 group-hover:bg-gold/30" />
           <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-gold-light/40 to-gold-dark/10 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={inf.avatar_url || "/avatar-placeholder.svg"}
-            alt={inf.name}
+          <Avatar
+            src={inf.avatar_url}
+            name={inf.name}
+            textClass="text-3xl"
             className="relative h-full w-full rounded-full border-2 border-gold/20 object-cover transition-transform duration-500 group-hover:scale-105"
           />
         </div>
