@@ -3,23 +3,36 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle, MoreVertical, CalendarDays, MessageCircle, Phone, ChevronRight, ChevronLeft, FilterX, XCircle, Globe,
+  Users, Megaphone, Clock, CheckCircle2, Check, X, Trash2, Search, Plus, Settings, Pencil, BadgeCheck, AlertTriangle, MoreVertical, CalendarDays, MessageCircle, Phone, ChevronRight, ChevronLeft, FilterX, XCircle, Globe, KeyRound,
 } from "lucide-react";
 import { formatFollowers } from "@/lib/constants";
 import { normalizePhone } from "@/lib/validators";
 import {
-  setInfluencerStatus, deleteInfluencer, deleteAdRequest, bulkSetInfluencerStatus, bulkDeleteInfluencers,
+  setInfluencerStatus, setInfluencerPlan, deleteInfluencer, deleteAdRequest, bulkSetInfluencerStatus, bulkDeleteInfluencers,
 } from "@/lib/actions";
+import ChangePasswordForm from "./ChangePasswordForm";
+import SetPasswordModal from "./SetPasswordModal";
 import SettingsForm from "./SettingsForm";
 import AddInfluencerModal from "./AddInfluencerModal";
 import SeoManager from "./SeoManager";
-import type { Influencer, AdRequest, InfluencerStatus } from "@/lib/types";
+import type { Influencer, AdRequest, InfluencerStatus, InfluencerPlan } from "@/lib/types";
 import type { Stats } from "@/lib/data";
 import type { SiteSettings } from "@/lib/settings";
 import type { SeoPage } from "@/lib/seo-shared";
 import { Avatar } from "@/components/Avatar";
 
 type ActionResult = { ok: boolean; message?: string };
+/** الباقة الفعّالة: تصبح أساسي بعد تاريخ الانتهاء (نفس قاعدة الموقع العام). */
+const effectivePlan = (i: Influencer) =>
+  i.plan_expires_at && new Date(i.plan_expires_at) < new Date() ? "free" : i.plan ?? "free";
+
+const DAY = 86_400_000;
+/** عند الترقية: نحتفظ بتاريخ الانتهاء لو لسه في المستقبل، وإلا نبدأ اشتراك 30 يوم من اليوم. */
+function nextExpiry(current?: string | null) {
+  const keep = current && new Date(current).getTime() > Date.now();
+  return (keep ? current! : new Date(Date.now() + 30 * DAY).toISOString()).slice(0, 10);
+}
+
 type Tab = "influencers" | "ads" | "seo" | "settings";
 
 const PAGE_SIZE = 10;
@@ -59,8 +72,10 @@ export default function AdminDashboard({
   const [tab, setTabState] = useState<Tab>(initialTab || "influencers");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [rankFilter, setRankFilter] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [editingInfluencer, setEditingInfluencer] = useState<Influencer | null>(null);
+  const [pwInfluencer, setPwInfluencer] = useState<Influencer | null>(null);
   const [actionError, setActionError] = useState("");
   const [openMenu, setOpenMenu] = useState<{ id: string; top: number; left: number } | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -132,7 +147,7 @@ export default function AdminDashboard({
   useEffect(() => {
     setInfPage(1);
     setSelected(new Set());
-  }, [q, statusFilter]);
+  }, [q, statusFilter, rankFilter]);
 
   useEffect(() => {
     setAdPage(1);
@@ -178,7 +193,8 @@ export default function AdminDashboard({
   const filtered = influencers.filter((i) => {
     const mq = !q || i.name.includes(q) || i.city.includes(q);
     const ms = !statusFilter || i.status === statusFilter;
-    return mq && ms;
+    const mr = !rankFilter || effectivePlan(i) === rankFilter;
+    return mq && ms && mr;
   });
   const infTotalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const infPageClamped = Math.min(infPage, infTotalPages);
@@ -210,6 +226,10 @@ export default function AdminDashboard({
           </button>
         </div>
       </div>
+
+      {pwInfluencer && (
+        <SetPasswordModal influencerId={pwInfluencer.id} name={pwInfluencer.name} onClose={() => setPwInfluencer(null)} />
+      )}
 
       {(showAdd || editingInfluencer) && (
         <AddInfluencerModal
@@ -247,6 +267,7 @@ export default function AdminDashboard({
         <>
           <SectionTitle icon={<Settings className="h-5 w-5" />} title="تعديل إعدادات الموقع" />
           <SettingsForm initial={settings} />
+          {!demo && <ChangePasswordForm />}
         </>
       ) : tab === "seo" ? (
         <>
@@ -267,6 +288,12 @@ export default function AdminDashboard({
               <option value="pending">قيد المراجعة</option>
               <option value="approved">مقبول</option>
               <option value="rejected">مرفوض</option>
+            </select>
+            <select value={rankFilter} onChange={(e) => setRankFilter(e.target.value)} className="field w-44">
+              <option value="">كل الرتب</option>
+              <option value="vip">ذهبي</option>
+              <option value="pro">مميّز</option>
+              <option value="free">أساسي</option>
             </select>
           </div>
 
@@ -340,6 +367,12 @@ export default function AdminDashboard({
                   <div className="flex flex-wrap items-center justify-start gap-2">
                     <span className="font-semibold text-white">{inf.name}</span>
                     <StatusPill status={inf.status} />
+                    {inf.plan && inf.plan !== "free" && (
+                      <span className="rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 text-[10px] text-gold">
+                        {inf.plan === "vip" ? "ذهبي" : "مميّز"}
+                        {effectivePlan(inf) === "free" && <span className="text-red-400"> (منتهية)</span>}
+                      </span>
+                    )}
                     {inf.verified && (
                       <span className="flex items-center gap-1 rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 text-[10px] text-gold">
                         <BadgeCheck className="h-3 w-3" />
@@ -354,13 +387,51 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
-                <button
-                  onClick={(e) => toggleMenu(inf.id, e)}
-                  className="glass flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-white/70 hover:text-gold"
-                  aria-label="خيارات"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
+                <div className="flex flex-shrink-0 flex-wrap items-end gap-2">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-white/50">الرتبة</span>
+                    <select
+                      value={inf.plan ?? "free"}
+                      disabled={isPending}
+                      onChange={(e) => {
+                        const plan = e.target.value as InfluencerPlan;
+                        run(() => setInfluencerPlan(inf.id, plan, plan === "free" ? null : nextExpiry(inf.plan_expires_at)));
+                      }}
+                      className="field h-9 w-28 py-0 text-xs"
+                    >
+                      <option value="free">أساسي</option>
+                      <option value="pro">مميّز</option>
+                      <option value="vip">ذهبي</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-white/50">تنتهي في</span>
+                    <input
+                      type="date"
+                      dir="ltr"
+                      value={inf.plan_expires_at?.slice(0, 10) ?? ""}
+                      disabled={isPending || !inf.plan || inf.plan === "free"}
+                      title={!inf.plan || inf.plan === "free" ? "اختر رتبة مميّز أو ذهبي أولاً" : undefined}
+                      onChange={(e) => run(() => setInfluencerPlan(inf.id, inf.plan!, e.target.value || null))}
+                      className="field h-9 w-36 py-0 text-xs disabled:opacity-40"
+                    />
+                  </label>
+                  <button
+                    onClick={() => setEditingInfluencer(inf)}
+                    className="glass flex h-9 w-9 items-center justify-center rounded-full text-white/70 hover:text-gold"
+                    aria-label={`تعديل ${inf.name}`}
+                    title="تعديل"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={(e) => toggleMenu(inf.id, e)}
+                    className="glass flex h-9 w-9 items-center justify-center rounded-full text-white/70 hover:text-gold"
+                    aria-label="خيارات"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             ))}
             {filtered.length === 0 && <p className="py-10 text-center text-white/40">لا يوجد مؤثرون.</p>}
@@ -380,11 +451,11 @@ export default function AdminDashboard({
                 <MenuItem
                   onClick={() => {
                     setOpenMenu(null);
-                    setEditingInfluencer(menuInfluencer);
+                    setPwInfluencer(menuInfluencer);
                   }}
-                  icon={<Pencil className="h-3.5 w-3.5" />}
+                  icon={<KeyRound className="h-3.5 w-3.5" />}
                 >
-                  تعديل
+                  كلمة المرور
                 </MenuItem>
 
                 {/* لا نعرض إجراء الحالة الحالية نفسه — لو مقبول أصلاً منعرضش "قبول" تاني، وهكذا */}

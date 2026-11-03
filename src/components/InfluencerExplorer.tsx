@@ -16,11 +16,15 @@ const FOLLOWER_RANGES = [
   { label: "+500K متابع", min: 500_000 },
 ];
 
+// الرتبة = الباقة الفعّالة للمؤثر
+const RANKS: Record<string, string> = { "ذهبي": "vip", "مميّز": "pro", "أساسي": "free" };
+
 export default function InfluencerExplorer({ influencers }: { influencers: Influencer[] }) {
   const [q, setQ] = useState("");
   const [city, setCity] = useState("");
   const [category, setCategory] = useState("");
   const [followersLabel, setFollowersLabel] = useState("");
+  const [rank, setRank] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [page, setPage] = useState(1);
@@ -34,28 +38,31 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
         !q ||
         i.name.includes(q) ||
         i.city.includes(q) ||
-        i.category.includes(q);
+        i.category.includes(q) ||
+        Object.entries(RANKS).some(([label, plan]) => label.includes(q) && (i.plan ?? "free") === plan);
       const matchCity = !city || i.city === city;
       const matchCat = !category || i.category === category;
+      const matchRank = !rank || (i.plan ?? "free") === RANKS[rank];
       const matchFollowers = i.followers >= minFollowers;
       const matchVerified = !verifiedOnly || i.verified;
-      return matchQ && matchCity && matchCat && matchFollowers && matchVerified;
+      return matchQ && matchCity && matchCat && matchRank && matchFollowers && matchVerified;
     });
-  }, [influencers, q, city, category, minFollowers, verifiedOnly]);
+  }, [influencers, q, city, category, rank, minFollowers, verifiedOnly]);
 
   useEffect(() => {
     setPage(1);
-  }, [q, city, category, followersLabel, verifiedOnly]);
+  }, [q, city, category, rank, followersLabel, verifiedOnly]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageClamped = Math.min(page, totalPages);
   const paged = filtered.slice((pageClamped - 1) * PAGE_SIZE, pageClamped * PAGE_SIZE);
 
-  const activeFilters = (city ? 1 : 0) + (category ? 1 : 0) + (followersLabel ? 1 : 0);
+  const activeFilters = (city ? 1 : 0) + (category ? 1 : 0) + (rank ? 1 : 0) + (followersLabel ? 1 : 0);
 
   function resetFilters() {
     setCity("");
     setCategory("");
+    setRank("");
     setFollowersLabel("");
   }
 
@@ -65,7 +72,7 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
         <span className="badge-gold mx-auto">نخبة المؤثرين الموثّقين</span>
         <h2 className="mt-4 font-display text-4xl font-bold gold-text">استكشف المؤثرين</h2>
         <p className="mx-auto mt-3 max-w-xl text-sm text-muted">
-          ابحث وصفِّ النتائج حسب المدينة، التصنيف، وعدد المتابعين
+          ابحث وصفِّ النتائج حسب المدينة، التصنيف، الرتبة، وعدد المتابعين
         </p>
       </div>
 
@@ -132,7 +139,7 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
 
         {showFilters && (
           <div className="glass animate-dropdown mt-3 rounded-2xl p-4">
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <SearchableSelect
                 label="المدينة"
                 value={city}
@@ -149,6 +156,13 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
                 placeholder="كل التصنيفات"
               />
               <SearchableSelect
+                label="الرتبة"
+                value={rank}
+                onChange={setRank}
+                options={Object.keys(RANKS)}
+                placeholder="كل الرتب"
+              />
+              <SearchableSelect
                 label="عدد المتابعين"
                 value={followersLabel}
                 onChange={setFollowersLabel}
@@ -161,6 +175,7 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
               <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
                 {city && <FilterChip label={`المدينة: ${city}`} onRemove={() => setCity("")} />}
                 {category && <FilterChip label={`التصنيف: ${category}`} onRemove={() => setCategory("")} />}
+                {rank && <FilterChip label={`الرتبة: ${rank}`} onRemove={() => setRank("")} />}
                 {followersLabel && <FilterChip label={followersLabel} onRemove={() => setFollowersLabel("")} />}
                 <button
                   onClick={resetFilters}
@@ -196,7 +211,7 @@ export default function InfluencerExplorer({ influencers }: { influencers: Influ
         </div>
       ) : (
         <>
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
             {paged.map((inf) => (
               <InfluencerCard key={inf.id} inf={inf} />
             ))}

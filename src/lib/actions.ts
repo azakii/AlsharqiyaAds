@@ -1,17 +1,23 @@
 "use server";
 
 import { cookies, headers } from "next/headers";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { dbEnabled, query, exec, transaction, isDuplicate } from "./db";
 import { sendMail } from "./mail";
-import { adminCreds, makeToken, ADMIN_COOKIE, isAdmin } from "./auth";
-import { makeUserToken, USER_COOKIE } from "./userAuth";
+import { adminCreds, makeToken, checkAdminPassword, ADMIN_COOKIE, isAdmin } from "./auth";
+import { makeUserToken, USER_COOKIE, currentInfluencerId } from "./userAuth";
 import { DEFAULT_SETTINGS, BOOLEAN_SETTINGS_KEYS, type SiteSettings } from "./settings";
 import { isSaudiPhone, SAUDI_PHONE_ERROR } from "./validators";
 import { slugify, type StructuredDataBlock } from "./seo-shared";
-import type { InfluencerStatus, AdRequestStatus } from "./types";
+import type { InfluencerStatus, InfluencerPlan, AdRequestStatus } from "./types";
+
+/** revalidatePath + drop the unstable_cache entries (settings / influencers / seo) so admin edits show immediately. */
+function invalidate(...a: Parameters<typeof revalidatePath>) {
+  revalidateTag("db");
+  revalidatePath(...a);
+}
 
 // ---------- Public submissions ----------
 
@@ -27,6 +33,10 @@ export async function submitInfluencer(formData: FormData) {
   const password = String(formData.get("password") || "");
   if (!email) return { ok: false, message: "البريد الإلكتروني مطلوب لإنشاء حساب الدخول." };
   if (password.length < 6) return { ok: false, message: "كلمة المرور يجب ألا تقل عن 6 أحرف." };
+
+  if (await isEmailTaken(email)) {
+    return { ok: false, message: "هذا البريد الإلكتروني مسجّل بالفعل، جرّب تسجيل الدخول بدلاً من ذلك." };
+  }
 
   const basePayload = {
     name,
@@ -82,6 +92,35 @@ export async function submitInfluencer(formData: FormData) {
     ok: true,
     message: "تم إرسال طلب التسجيل بنجاح. بعد موافقة الإدارة، تقدر تسجّل الدخول بنفس البريد الإلكتروني وكلمة المرور.",
   };
+}
+
+/** هل البريد مستخدم؟ (حساب دخول أو ملف مؤثر) — للتحقق أثناء التسجيل. */
+export async function isEmailTaken(email: string): Promise<boolean> {
+  const e = email.trim().toLowerCase();
+  if (!e || !dbEnabled) return false;
+  try {
+    const rows = await query("SELECT 1 AS x FROM users WHERE email = ? UNION SELECT 1 FROM influencers WHERE LOWER(email) = ?", [e, e]);
+    return rows.length > 0;
+  } catch (err) {
+    console.error("isEmailTaken:", err);
+    return false;
+  }
+}
+
+/** المؤثر المسجّل دخوله يغيّر صورته فقط (باقي بياناته تعدّلها الإدارة). نقبل فقط روابط الرفع المحلية. */
+export async function updateOwnAvatar(url: string) {
+  const uid = currentInfluencerId();
+  if (!uid) return { ok: false, message: "سجّل الدخول أولاً." };
+  if (url && !url.startsWith("/uploads/")) return { ok: false, message: "رابط الصورة غير صالح." };
+  if (!dbEnabled) return { ok: true };
+  try {
+    await exec("UPDATE influencers SET avatar_url = ? WHERE id = ?", [url, uid]);
+  } catch (e) {
+    return dbError(e);
+  }
+  invalidate("/account");
+  invalidate("/");
+  return { ok: true };
 }
 
 export async function submitAdRequest(formData: FormData) {
@@ -151,7 +190,7 @@ export async function login(formData: FormData) {
   const username = String(formData.get("username") || "");
   const password = String(formData.get("password") || "");
   const creds = adminCreds();
-  if (username === creds.username && password === creds.password) {
+  if (username === creds.username && (await checkAdminPassword(password))) {
     cookies().set(ADMIN_COOKIE, makeToken(username), {
       httpOnly: true,
       sameSite: "lax",
@@ -161,6 +200,25 @@ export async function login(formData: FormData) {
     return { ok: true };
   }
   return { ok: false, message: "اسم المستخدم أو كلمة المرور غير صحيحة." };
+}
+
+/** Admin-only: يغيّر كلمة مرور الأدمن (تُخزَّن مُشفّرة في القاعدة وتتقدّم على ADMIN_PASSWORD). */
+export async function changeAdminPassword(current: string, next: string) {
+  await guard();
+  if (!dbEnabled) return { ok: false, message: "تغيير كلمة المرور يحتاج قاعدة بيانات متصلة." };
+  if (!(await checkAdminPassword(current))) return { ok: false, message: "كلمة المرور الحالية غير صحيحة." };
+  if (next.length < 8) return { ok: false, message: "كلمة المرور الجديدة يجب ألا تقل عن 8 أحرف." };
+  if (next === current) return { ok: false, message: "اختر كلمة مرور مختلفة عن الحالية." };
+  try {
+    await exec("CREATE TABLE IF NOT EXISTS admin_auth (id TINYINT NOT NULL PRIMARY KEY, password_hash VARCHAR(100) NOT NULL)");
+    await exec(
+      "INSERT INTO admin_auth (id, password_hash) VALUES (1, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)",
+      [await bcrypt.hash(next, 10)]
+    );
+  } catch (e) {
+    return dbError(e);
+  }
+  return { ok: true, message: "تم تغيير كلمة المرور. استخدم الجديدة في تسجيل الدخول القادم." };
 }
 
 export async function logout() {
@@ -234,27 +292,29 @@ export async function requestPasswordReset(formData: FormData) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
   if (!email) return { ok: false, message: "البريد الإلكتروني مطلوب." };
 
-  const genericMessage = "لو البريد الإلكتروني مسجّل عندنا، وصلك رابط لإعادة تعيين كلمة المرور خلال دقائق.";
-  if (!dbEnabled) return { ok: true, message: genericMessage };
+  const sent = "وصلك رابط لإعادة تعيين كلمة المرور على بريدك الإلكتروني (صالح لمدة ساعة).";
+  if (!dbEnabled) return { ok: true, message: sent };
 
   try {
+    const [user] = await query("SELECT id FROM users WHERE email = ?", [email]);
+    if (!user) return { ok: false, message: "هذا البريد الإلكتروني غير مسجّل لدينا." };
+
     const token = crypto.randomBytes(32).toString("hex");
-    const n = await exec(
-      "UPDATE users SET reset_token_hash = ?, reset_expires = ? WHERE email = ?",
-      [sha256(token), new Date(Date.now() + RESET_TTL_MS).toISOString().slice(0, 19).replace("T", " "), email]
+    await exec("UPDATE users SET reset_token_hash = ?, reset_expires = ? WHERE email = ?", [
+      sha256(token),
+      new Date(Date.now() + RESET_TTL_MS).toISOString().slice(0, 19).replace("T", " "),
+      email,
+    ]);
+    await sendMail(
+      email,
+      "إعادة تعيين كلمة المرور",
+      `لإعادة تعيين كلمة المرور افتح الرابط التالي (صالح لمدة ساعة):\n${siteOrigin()}/reset-password?token=${token}`
     );
-    if (n > 0) {
-      await sendMail(
-        email,
-        "إعادة تعيين كلمة المرور",
-        `لإعادة تعيين كلمة المرور افتح الرابط التالي (صالح لمدة ساعة):\n${siteOrigin()}/reset-password?token=${token}`
-      );
-    }
   } catch (e) {
-    // ما نكشفش تفاصيل الخطأ للمستخدم حفاظاً على الخصوصية — بس نسجله في اللوج.
     console.error("requestPasswordReset:", e);
+    return { ok: false, message: "تعذّر إرسال البريد حالياً، حاول مرة أخرى لاحقاً أو تواصل مع الإدارة." };
   }
-  return { ok: true, message: genericMessage };
+  return { ok: true, message: sent };
 }
 
 /** يستهلك توكن إعادة التعيين (استخدام واحد) ويحفظ كلمة المرور الجديدة. */
@@ -293,8 +353,8 @@ export async function setInfluencerStatus(id: string, status: InfluencerStatus) 
   } catch (e) {
     return dbError(e);
   }
-  revalidatePath("/admin");
-  revalidatePath("/");
+  invalidate("/admin");
+  invalidate("/");
   return { ok: true };
 }
 
@@ -309,8 +369,8 @@ export async function bulkSetInfluencerStatus(ids: string[], status: InfluencerS
   } catch (e) {
     return dbError(e);
   }
-  revalidatePath("/admin");
-  revalidatePath("/");
+  invalidate("/admin");
+  invalidate("/");
   return { ok: true, message: `تم تحديث حالة ${n} مؤثر.` };
 }
 
@@ -325,8 +385,8 @@ export async function bulkDeleteInfluencers(ids: string[]) {
   } catch (e) {
     return dbError(e);
   }
-  revalidatePath("/admin");
-  revalidatePath("/");
+  invalidate("/admin");
+  invalidate("/");
   return { ok: true, message: `تم حذف ${n} مؤثر.` };
 }
 
@@ -339,8 +399,59 @@ export async function setVerified(id: string, verified: boolean) {
   } catch (e) {
     return dbError(e);
   }
-  revalidatePath("/admin");
-  revalidatePath("/");
+  invalidate("/admin");
+  invalidate("/");
+  return { ok: true };
+}
+
+/**
+ * Admin-only: يعيّن كلمة مرور جديدة لحساب المؤثر (يعمل بدون SMTP).
+ * لو المؤثر مضاف من الأدمن وليس له حساب دخول، ننشئ له واحداً ببريده.
+ */
+export async function adminSetInfluencerPassword(id: string, password: string) {
+  await guard();
+  if (password.length < 6) return { ok: false, message: "كلمة المرور يجب ألا تقل عن 6 أحرف." };
+  if (!dbEnabled) return { ok: true, demo: true, message: "تم (وضع تجريبي — لم يُحفظ شيء)." };
+  try {
+    const [inf] = await query<{ email: string; auth_user_id: string | null }>(
+      "SELECT email, auth_user_id FROM influencers WHERE id = ?", [id]
+    );
+    if (!inf) return { ok: false, message: "لم يتم العثور على المؤثر." };
+    const hash = await bcrypt.hash(password, 10);
+    if (inf.auth_user_id) {
+      await exec("UPDATE users SET password_hash = ?, reset_token_hash = NULL, reset_expires = NULL WHERE id = ?", [hash, inf.auth_user_id]);
+    } else {
+      const email = (inf.email || "").trim().toLowerCase();
+      if (!email) return { ok: false, message: "لا يوجد بريد إلكتروني للمؤثر لإنشاء حساب دخول له." };
+      const userId = crypto.randomUUID();
+      await transaction(async (run) => {
+        await run("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [userId, email, hash]);
+        await run("UPDATE influencers SET auth_user_id = ? WHERE id = ?", [userId, id]);
+      });
+    }
+  } catch (e) {
+    return dbError(e, "هذا البريد الإلكتروني مرتبط بحساب آخر بالفعل.");
+  }
+  return { ok: true, message: "تم تعيين كلمة المرور." };
+}
+
+/** Admin-only: تغيير رتبة (باقة) المؤثر وتاريخ انتهائها مباشرة من الكارد. */
+export async function setInfluencerPlan(id: string, plan: InfluencerPlan, expiresAt: string | null) {
+  await guard();
+  if (!["free", "pro", "vip"].includes(plan)) return { ok: false, message: "رتبة غير صالحة." };
+  if (!dbEnabled) return { ok: true, demo: true };
+  try {
+    const n = await exec("UPDATE influencers SET plan = ?, plan_expires_at = ? WHERE id = ?", [
+      plan,
+      plan === "free" ? null : expiresAt || null,
+      id,
+    ]);
+    if (n === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
+  } catch (e) {
+    return dbError(e);
+  }
+  invalidate("/admin");
+  invalidate("/");
   return { ok: true };
 }
 
@@ -365,6 +476,8 @@ function influencerPayloadFromForm(formData: FormData) {
     license_number: String(formData.get("license_number") || "").trim() || null,
     verified: formData.get("verified") === "on" || formData.get("verified") === "true",
     status: (String(formData.get("status") || "approved") as InfluencerStatus) || "approved",
+    plan: (["pro", "vip"].includes(String(formData.get("plan"))) ? String(formData.get("plan")) : "free") as InfluencerPlan,
+    plan_expires_at: String(formData.get("plan_expires_at") || "") || null, // yyyy-mm-dd من input type=date
     // رابط صديق اختياري لصفحة المؤثر — يُطهَّر دائماً عبر slugify قبل الحفظ، فريد على مستوى القاعدة.
     slug: rawSlug ? slugify(rawSlug) : null,
   };
@@ -392,16 +505,16 @@ export async function adminCreateInfluencer(formData: FormData) {
   try {
     await exec(
       `INSERT INTO influencers (id, name, phone, email, city, category, bio, followers, avatar_url, socials,
-         license_number, verified, status, slug, views, clicks, ad_requests)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0)`,
+         license_number, verified, status, slug, plan, plan_expires_at, views, clicks, ad_requests)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0)`,
       [id, p.name, p.phone, p.email, p.city, p.category, p.bio, p.followers, p.avatar_url, JSON.stringify(p.socials),
-       p.license_number, p.verified, p.status, p.slug]
+       p.license_number, p.verified, p.status, p.slug, p.plan, p.plan_expires_at]
     );
   } catch (e) {
     return dbError(e, SLUG_TAKEN);
   }
-  revalidatePath("/admin");
-  revalidatePath("/");
+  invalidate("/admin");
+  invalidate("/");
   return { ok: true, id, message: "تمت إضافة المؤثر بنجاح." };
 }
 
@@ -426,16 +539,16 @@ export async function adminUpdateInfluencer(id: string, formData: FormData) {
     if (!row) return { ok: false, message: "لم يتم العثور على المؤثر." };
     await exec(
       `UPDATE influencers SET name=?, phone=?, email=?, city=?, category=?, bio=?, followers=?, avatar_url=?,
-         socials=?, license_number=?, verified=?, status=?, slug=? WHERE id = ?`,
+         socials=?, license_number=?, verified=?, status=?, slug=?, plan=?, plan_expires_at=? WHERE id = ?`,
       [p.name, p.phone, p.email, p.city, p.category, p.bio, p.followers, p.avatar_url, JSON.stringify(p.socials),
-       p.license_number, p.verified, p.status, p.slug, id]
+       p.license_number, p.verified, p.status, p.slug, p.plan, p.plan_expires_at, id]
     );
   } catch (e) {
     return dbError(e, SLUG_TAKEN);
   }
 
-  revalidatePath("/admin");
-  revalidatePath("/");
+  invalidate("/admin");
+  invalidate("/");
   return { ok: true, message: "تم حفظ التعديلات بنجاح." };
 }
 
@@ -448,8 +561,8 @@ export async function deleteInfluencer(id: string) {
   } catch (e) {
     return dbError(e);
   }
-  revalidatePath("/admin");
-  revalidatePath("/");
+  invalidate("/admin");
+  invalidate("/");
   return { ok: true };
 }
 
@@ -462,7 +575,7 @@ export async function setAdRequestStatus(id: string, status: AdRequestStatus) {
   } catch (e) {
     return dbError(e);
   }
-  revalidatePath("/admin");
+  invalidate("/admin");
   return { ok: true };
 }
 
@@ -475,7 +588,7 @@ export async function deleteAdRequest(id: string) {
   } catch (e) {
     return dbError(e);
   }
-  revalidatePath("/admin");
+  invalidate("/admin");
   return { ok: true };
 }
 
@@ -500,7 +613,7 @@ export async function saveSettings(formData: FormData) {
   } catch (e) {
     return dbError(e);
   }
-  revalidatePath("/", "layout");
+  invalidate("/", "layout");
   return { ok: true, message: "تم حفظ الإعدادات بنجاح." };
 }
 
@@ -592,8 +705,8 @@ export async function upsertSeoPage(formData: FormData) {
     return dbError(e, "هذا المسار مستخدم بالفعل في سجل سيو آخر.");
   }
 
-  revalidatePath(path);
-  revalidatePath("/admin");
+  invalidate(path);
+  invalidate("/admin");
   return { ok: true, message: "تم حفظ إعدادات السيو بنجاح." };
 }
 
@@ -608,7 +721,7 @@ export async function deleteSeoPage(id: string, path?: string) {
     return dbError(e);
   }
 
-  if (path) revalidatePath(path);
-  revalidatePath("/admin");
+  if (path) invalidate(path);
+  invalidate("/admin");
   return { ok: true, message: "تم حذف إعدادات السيو." };
 }

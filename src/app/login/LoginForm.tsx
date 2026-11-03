@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, ArrowLeft, Loader2 } from "lucide-react";
 import { loginInfluencer } from "@/lib/actions";
+import { PasswordInput } from "@/components/PasswordInput";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -40,7 +41,7 @@ export default function LoginForm() {
         </div>
         <div className="relative">
           <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
-          <input name="password" type="password" dir="ltr" className="field pr-10" placeholder="••••••••" required />
+          <PasswordInput name="password" dir="ltr" className="field pr-10" placeholder="••••••••" required />
         </div>
       </div>
 

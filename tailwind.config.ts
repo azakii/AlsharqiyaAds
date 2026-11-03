@@ -16,6 +16,11 @@ const config: Config = {
           dark: "rgb(var(--c-gold-dark) / <alpha-value>)",
           muted: "#B99A48",
         },
+        silver: {
+          DEFAULT: "rgb(var(--c-silver) / <alpha-value>)",
+          light: "rgb(var(--c-silver-light) / <alpha-value>)",
+          dark: "rgb(var(--c-silver-dark) / <alpha-value>)",
+        },
         line: "rgba(212, 160, 23, 0.16)",
         muted: "rgb(var(--c-muted) / <alpha-value>)",
       },
@@ -25,6 +30,7 @@ const config: Config = {
       },
       backgroundImage: {
         "gold-gradient": "linear-gradient(90deg, rgb(var(--c-gold-light)) 0%, rgb(var(--c-gold-dark)) 100%)",
+        "silver-gradient": "linear-gradient(90deg, rgb(var(--c-silver-light)) 0%, rgb(var(--c-silver-dark)) 100%)",
         "gold-radial": "radial-gradient(circle at 50% 0%, rgb(var(--c-gold) / 0.10), transparent 60%)",
       },
       boxShadow: {

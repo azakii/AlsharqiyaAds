@@ -5,8 +5,9 @@ import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import Stepper from "@/components/Stepper";
 import AvatarUploader from "@/components/AvatarUploader";
 import { CITIES, CATEGORIES } from "@/lib/constants";
-import { submitInfluencer } from "@/lib/actions";
+import { submitInfluencer, isEmailTaken } from "@/lib/actions";
 import { isSaudiPhone, SAUDI_PHONE_ERROR } from "@/lib/validators";
+import { PasswordInput } from "@/components/PasswordInput";
 
 const STEPS = ["البيانات الأساسية", "التفاصيل والمحتوى", "الصورة الشخصية", "روابط التواصل"];
 
@@ -21,6 +22,7 @@ export default function RegisterForm() {
   const [step, setStep] = useState(0);
   const [data, setData] = useState(empty);
   const [phoneTouched, setPhoneTouched] = useState(false);
+  const [emailTaken, setEmailTaken] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -56,7 +58,7 @@ export default function RegisterForm() {
 
   const canNext =
     step === 0 ? Boolean(
-      data.name && data.phone && data.city && isSaudiPhone(data.phone) && data.email && data.password.length >= 6
+      data.name && data.phone && data.city && isSaudiPhone(data.phone) && data.email && !emailTaken && data.password.length >= 6
     ) :
     step === 1 ? Boolean(data.category && data.bio) :
     true;
@@ -84,23 +86,33 @@ export default function RegisterForm() {
           <Field label="البريد الإلكتروني">
             <input
               type="email"
-              className="field"
+              className={`field ${emailTaken ? "border-red-500/60" : ""}`}
               dir="ltr"
               placeholder="email@example.com"
               value={data.email}
-              onChange={(e) => set("email", e.target.value)}
+              onChange={(e) => {
+                set("email", e.target.value);
+                setEmailTaken(false);
+              }}
+              onBlur={async () => setEmailTaken(await isEmailTaken(data.email))}
             />
+            {emailTaken && (
+              <p className="mt-1.5 text-xs text-red-400">
+                هذا البريد مسجّل بالفعل. <a href="/login" className="underline">سجّل الدخول</a> أو استخدم بريداً آخر.
+              </p>
+            )}
             <p className="mt-1.5 text-xs text-white/35">هيبقى وسيلة تسجيل دخولك بعد ما تتوافق الإدارة على طلبك.</p>
           </Field>
           <Field label="كلمة المرور">
-            <input
-              type="password"
-              className="field"
-              dir="ltr"
-              placeholder="6 أحرف على الأقل"
-              value={data.password}
-              onChange={(e) => set("password", e.target.value)}
-            />
+            <div className="relative">
+              <PasswordInput
+                className="field"
+                dir="ltr"
+                placeholder="6 أحرف على الأقل"
+                value={data.password}
+                onChange={(e) => set("password", e.target.value)}
+              />
+            </div>
           </Field>
           <Field label="المدينة">
             <select className="field" value={data.city} onChange={(e) => set("city", e.target.value)}>

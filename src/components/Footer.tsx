@@ -18,6 +18,7 @@ export default function Footer({ settings }: { settings: SiteSettings }) {
           <ul className="space-y-2 text-sm text-white/60">
             <li><Link href="/" className="hover:text-gold">الرئيسية</Link></li>
             <li><Link href="/register" className="hover:text-gold">تسجيل كمؤثر</Link></li>
+            <li><Link href="/pricing" className="hover:text-gold">باقات الاشتراك</Link></li>
             <li><Link href="/ad-request" className="hover:text-gold">طلب إعلان</Link></li>
           </ul>
         </div>

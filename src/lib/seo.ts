@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import type { Metadata } from "next";
 import { dbEnabled, query, parseJson } from "./db";
 import type { SiteSettings } from "./settings";
@@ -51,7 +52,9 @@ function normalizeRow(row: Record<string, unknown>): SeoPage {
 }
 
 /** قراءة عامة لصف سيو مسار معيّن — يُستخدم من generateMetadata في كل صفحة عامة. */
-export async function getSeoForPath(path: string): Promise<SeoPage | null> {
+export const getSeoForPath = unstable_cache(loadSeoForPath, ["seo-path"], { tags: ["db"], revalidate: 300 });
+
+async function loadSeoForPath(path: string): Promise<SeoPage | null> {
   if (!dbEnabled) return null;
   try {
     const [row] = await query("SELECT * FROM seo_pages WHERE path = ?", [path]);

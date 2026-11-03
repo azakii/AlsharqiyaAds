@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { dbEnabled, query, parseJson } from "./db";
 import { MOCK_INFLUENCERS, MOCK_AD_REQUESTS } from "./mock";
 import type { Influencer, AdRequest } from "./types";
@@ -14,15 +15,22 @@ function fromRow(row: Influencer): Influencer {
 
 function toPublicInfluencer(row: Influencer & { license_number?: string | null }): Influencer {
   const { license_number, ...rest } = row;
-  return { ...rest, has_license: Boolean(license_number) };
+  const expired = rest.plan_expires_at && new Date(rest.plan_expires_at) < new Date();
+  return { ...rest, plan: expired ? "free" : rest.plan ?? "free", has_license: Boolean(license_number) };
 }
 
+const PLAN_RANK = { vip: 2, pro: 1, free: 0 };
+const rank = (i: Influencer) => PLAN_RANK[i.plan!] * 2 + (i.verified ? 1 : 0);
+
 /** Public: only approved influencers, for the site grid + profiles. */
-export async function getApprovedInfluencers(): Promise<Influencer[]> {
+export const getApprovedInfluencers = unstable_cache(loadApprovedInfluencers, ["approved-influencers"], { tags: ["db"], revalidate: 300 });
+
+async function loadApprovedInfluencers(): Promise<Influencer[]> {
   if (!dbEnabled) return MOCK_INFLUENCERS.filter((i) => i.status === "approved");
   try {
     const rows = await query<Influencer>("SELECT * FROM influencers WHERE status = 'approved' ORDER BY created_at DESC");
-    return rows.map((r) => toPublicInfluencer(fromRow(r)));
+    // sort ثابت: الباقة الأعلى أولاً، وداخل كل باقة يبقى الأحدث تسجيلاً (ترتيب SQL) كما هو.
+    return rows.map((r) => toPublicInfluencer(fromRow(r))).sort((a, b) => rank(b) - rank(a));
   } catch (e) {
     console.error("getApprovedInfluencers:", e);
     return [];

@@ -65,3 +65,9 @@ export function formatFollowers(n: number): string {
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
   return String(n);
 }
+
+/** روابط السوشيال المسموحة: http(s) فقط (يمنع javascript: وما شابه). */
+export const isSafeUrl = (v: unknown): v is string => typeof v === "string" && /^https?:\/\//i.test(v.trim());
+
+/** صور Supabase القديمة محجوبة (حد الـ egress)، فنعاملها كأنها غير موجودة ونعرض الحرفين الأولين فوراً بدل انتظار فشل التحميل. */
+export const isDeadImage = (url?: string | null) => Boolean(url && /supabase\.co\/storage\//i.test(url));

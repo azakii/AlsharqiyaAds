@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS influencers (
   auth_user_id CHAR(36) NULL,
   license_number VARCHAR(100) NULL,
   slug VARCHAR(191) NULL UNIQUE,
+  plan ENUM('free','pro','vip') NOT NULL DEFAULT 'free',
+  plan_expires_at DATETIME NULL,
   INDEX influencers_auth_user_id_idx (auth_user_id),
   INDEX influencers_status_idx (status, created_at),
   CONSTRAINT influencers_auth_user_fk FOREIGN KEY (auth_user_id) REFERENCES users(id) ON DELETE SET NULL

@@ -9,6 +9,7 @@ import type { SiteSettings } from "@/lib/settings";
 export default function SettingsForm({ initial }: { initial: SiteSettings }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [heroImage, setHeroImage] = useState(initial.hero_image);
   const [faviconUrl, setFaviconUrl] = useState(initial.favicon_url);
   const [defaultOgImage, setDefaultOgImage] = useState(initial.default_og_image);
 
@@ -17,6 +18,7 @@ export default function SettingsForm({ initial }: { initial: SiteSettings }) {
     setLoading(true);
     setMsg(null);
     const fd = new FormData(e.currentTarget);
+    fd.set("hero_image", heroImage);
     fd.set("favicon_url", faviconUrl);
     fd.set("default_og_image", defaultOgImage);
     const res = await saveSettings(fd);
@@ -35,7 +37,7 @@ export default function SettingsForm({ initial }: { initial: SiteSettings }) {
       <Group title="القسم الرئيسي (Hero)">
         <Text name="hero_badge" label="الشارة العلوية" def={initial.hero_badge} full />
         <Text name="hero_title" label="العنوان الرئيسي" def={initial.hero_title} />
-        <Text name="hero_image" label="رابط صورة الخلفية" def={initial.hero_image} />
+        <AvatarUploader value={heroImage} onChange={setHeroImage} label="صورة الخلفية" folder="hero" shape="square" />
         <Area name="hero_subtitle" label="النص التعريفي" def={initial.hero_subtitle} />
       </Group>
 

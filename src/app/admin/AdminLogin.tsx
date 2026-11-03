@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { User, Lock, ArrowLeft, Loader2 } from "lucide-react";
 import { Crown } from "@/components/Icons";
 import { login } from "@/lib/actions";
+import { PasswordInput } from "@/components/PasswordInput";
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function AdminLogin() {
             <label className="field-label">كلمة المرور</label>
             <div className="relative">
               <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
-              <input name="password" type="password" className="field pr-10" placeholder="••••••••" required />
+              <PasswordInput name="password" className="field pr-10" placeholder="••••••••" required />
             </div>
           </div>
 

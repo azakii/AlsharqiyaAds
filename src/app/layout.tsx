@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SupportWhatsapp from "@/components/SupportWhatsapp";
@@ -9,6 +10,8 @@ import { getInfluencerById } from "@/lib/data";
 import { isAdmin, adminCreds } from "@/lib/auth";
 import { siteOrigin } from "@/lib/seo";
 import type { NavUser } from "@/components/Navbar";
+
+const plex = IBM_Plex_Sans_Arabic({ subsets: ["arabic", "latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-plex" });
 
 export const dynamic = "force-dynamic";
 
@@ -87,14 +90,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const themeVars = vars.length ? `:root{${vars.join(";")}}` : "";
 
   return (
-    <html lang="ar" dir="rtl">
+    <html lang="ar" dir="rtl" className={plex.variable}>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
         <style dangerouslySetInnerHTML={{ __html: themeVars }} />
       </head>
       <body className="min-h-screen bg-bg">

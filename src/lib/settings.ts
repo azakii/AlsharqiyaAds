@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { dbEnabled, query } from "./db";
 
 const MEDIA = "https://media.base44.com/images/public/6a568a5faa72478f74107d31";
@@ -83,7 +84,9 @@ export function mergeSettings(row: Partial<SiteSettings> | null | undefined): Si
   return out;
 }
 
-export async function getSettings(): Promise<SiteSettings> {
+export const getSettings = unstable_cache(loadSettings, ["settings"], { tags: ["db"], revalidate: 300 });
+
+async function loadSettings(): Promise<SiteSettings> {
   if (!dbEnabled) return DEFAULT_SETTINGS;
   try {
     const [row] = await query<Partial<SiteSettings>>("SELECT * FROM site_settings WHERE id = 1");

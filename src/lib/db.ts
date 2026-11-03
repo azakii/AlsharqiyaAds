@@ -35,14 +35,33 @@ function pool(): Pool {
   return g.__pool;
 }
 
+let migrated: Promise<void> | undefined;
+/** يضيف أعمدة الباقات لقاعدة قديمة مرة واحدة لكل عملية (ADD COLUMN لا يمس البيانات الموجودة). */
+function ensureSchema() {
+  return (migrated ??= (async () => {
+    try {
+      const [cols] = await pool().query("SHOW COLUMNS FROM influencers LIKE 'plan'");
+      if ((cols as unknown[]).length === 0) {
+        await pool().query(
+          "ALTER TABLE influencers ADD COLUMN plan ENUM('free','pro','vip') NOT NULL DEFAULT 'free', ADD COLUMN plan_expires_at DATETIME NULL"
+        );
+      }
+    } catch (e) {
+      console.error("ensureSchema:", e);
+    }
+  })());
+}
+
 /** SELECT -> plain objects (mysql2 row classes can't cross the server/client component boundary). */
 export async function query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+  await ensureSchema();
   const [rows] = await pool().query(sql, params);
   return (rows as Record<string, unknown>[]).map((r) => ({ ...r })) as T[];
 }
 
 /** INSERT/UPDATE/DELETE -> affected row count. */
 export async function exec(sql: string, params: unknown[] = []): Promise<number> {
+  await ensureSchema();
   const [res] = await pool().query<ResultSetHeader>(sql, params);
   return res.affectedRows;
 }

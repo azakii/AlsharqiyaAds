@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, MousePointerClick, Megaphone, BadgeCheck, LogOut, Loader2, Lock, Clock, XCircle } from "lucide-react";
-import { logoutInfluencer } from "@/lib/actions";
+import { logoutInfluencer, updateOwnAvatar } from "@/lib/actions";
+import AvatarUploader from "@/components/AvatarUploader";
+import { isDeadImage } from "@/lib/constants";
 import { normalizePhone } from "@/lib/validators";
 import { Whatsapp } from "@/components/Icons";
 import type { Influencer } from "@/lib/types";
@@ -12,6 +14,15 @@ import { Avatar } from "@/components/Avatar";
 export default function AccountForm({ influencer, supportWhatsapp }: { influencer: Influencer; supportWhatsapp: string }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [avatar, setAvatar] = useState(isDeadImage(influencer.avatar_url) ? "" : influencer.avatar_url);
+  const [avatarError, setAvatarError] = useState("");
+
+  async function onAvatar(url: string) {
+    setAvatar(url);
+    setAvatarError("");
+    const res = await updateOwnAvatar(url);
+    if (!res.ok) setAvatarError(res.message || "تعذّر حفظ الصورة.");
+  }
 
   async function onLogout() {
     setLoggingOut(true);
@@ -74,16 +85,22 @@ export default function AccountForm({ influencer, supportWhatsapp }: { influence
           .
         </div>
 
-        <div className="flex items-center gap-4">
-          <Avatar
-            src={influencer.avatar_url}
-            name={influencer.name}
-            textClass="text-xl"
-            className="h-16 w-16 rounded-full object-cover"
-          />
+        <div className="flex flex-wrap items-center gap-6">
+          <div className="flex items-start gap-3">
+            {!avatar && (
+              <Avatar
+                src=""
+                name={influencer.name}
+                textClass="text-3xl"
+                className="h-28 w-28 flex-shrink-0 rounded-full border-2 border-gold/20"
+              />
+            )}
+            <AvatarUploader value={avatar} onChange={onAvatar} label="تغيير الصورة" />
+          </div>
           <div>
             <div className="font-display text-lg font-bold text-white">{influencer.name}</div>
             <div className="text-xs text-white/45">{influencer.category}</div>
+            {avatarError && <p className="mt-2 text-xs text-red-400">{avatarError}</p>}
           </div>
         </div>
 

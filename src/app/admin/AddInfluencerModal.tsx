@@ -257,6 +257,19 @@ export default function AddInfluencerModal({
             </Field>
           </Row>
 
+          <Row>
+            <Field label="الباقة">
+              <select name="plan" defaultValue={influencer?.plan || "free"} className="modal-field">
+                <option value="free">أساسية (مجانية)</option>
+                <option value="pro">مميّز</option>
+                <option value="vip">ذهبي</option>
+              </select>
+            </Field>
+            <Field label="تنتهي في">
+              <input type="date" name="plan_expires_at" dir="ltr" defaultValue={influencer?.plan_expires_at?.slice(0, 10)} className="modal-field" />
+            </Field>
+          </Row>
+
           <label className="glass flex cursor-pointer items-center justify-between rounded-xl px-4 py-3">
             <span className="text-sm text-white/80">ملتزم (تفعيل الشارة الذهبية)</span>
             <input

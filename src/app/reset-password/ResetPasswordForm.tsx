@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Lock, Loader2, Check, AlertTriangle, ArrowLeft } from "lucide-react";
 import { resetPassword } from "@/lib/actions";
+import { PasswordInput } from "@/components/PasswordInput";
 
 type Status = "checking" | "ready" | "invalid" | "saving" | "success";
 
@@ -83,8 +84,7 @@ export default function ResetPasswordForm() {
         <label className="field-label">كلمة المرور الجديدة</label>
         <div className="relative">
           <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
-          <input
-            type="password"
+          <PasswordInput
             dir="ltr"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -98,8 +98,7 @@ export default function ResetPasswordForm() {
         <label className="field-label">تأكيد كلمة المرور</label>
         <div className="relative">
           <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
-          <input
-            type="password"
+          <PasswordInput
             dir="ltr"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}

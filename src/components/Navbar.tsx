@@ -15,6 +15,7 @@ type NavLink = { href: string; label: string; tab?: string };
 const LINKS: NavLink[] = [
   { href: "/", label: "الرئيسية" },
   { href: "/influencers", label: "المشاهير" },
+  { href: "/pricing", label: "باقات المؤثرين" },
 ];
 
 // لما يكون الأدمن مسجل دخول، القائمة الرئيسية تتحول لروابط لوحة التحكم مباشرة —

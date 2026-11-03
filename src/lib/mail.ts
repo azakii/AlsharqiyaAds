@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 /** Sends via SMTP (SMTP_* env). Without SMTP_HOST it logs the message so dev flows still work. */
 export async function sendMail(to: string, subject: string, text: string): Promise<void> {
   if (!process.env.SMTP_HOST) {
+    if (process.env.NODE_ENV === "production") throw new Error("SMTP غير مُعدّ (SMTP_HOST)");
     console.log(`[mail:dev] to=${to}\n${subject}\n${text}`);
     return;
   }
