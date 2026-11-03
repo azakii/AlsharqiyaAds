@@ -8,10 +8,12 @@ import {
 import { formatFollowers } from "@/lib/constants";
 import { normalizePhone } from "@/lib/validators";
 import {
-  setInfluencerStatus, setInfluencerPlan, deleteInfluencer, deleteAdRequest, bulkSetInfluencerStatus, bulkDeleteInfluencers,
+  setInfluencerStatus, unbanInfluencer, setInfluencerPlan, deleteInfluencer, deleteAdRequest, bulkSetInfluencerStatus, bulkDeleteInfluencers,
 } from "@/lib/actions";
 import ChangePasswordForm from "./ChangePasswordForm";
 import SetPasswordModal from "./SetPasswordModal";
+import BanModal from "./BanModal";
+import { STATUS_LABEL as STATUS_LABELS } from "@/lib/status";
 import SettingsForm from "./SettingsForm";
 import AddInfluencerModal from "./AddInfluencerModal";
 import SeoManager from "./SeoManager";
@@ -76,6 +78,7 @@ export default function AdminDashboard({
   const [showAdd, setShowAdd] = useState(false);
   const [editingInfluencer, setEditingInfluencer] = useState<Influencer | null>(null);
   const [pwInfluencer, setPwInfluencer] = useState<Influencer | null>(null);
+  const [banInf, setBanInf] = useState<Influencer | null>(null);
   const [actionError, setActionError] = useState("");
   const [openMenu, setOpenMenu] = useState<{ id: string; top: number; left: number } | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -227,6 +230,18 @@ export default function AdminDashboard({
         </div>
       </div>
 
+      {banInf && (
+        <BanModal
+          influencerId={banInf.id}
+          name={banInf.name}
+          onClose={() => setBanInf(null)}
+          onDone={() => {
+            setBanInf(null);
+            router.refresh();
+          }}
+        />
+      )}
+
       {pwInfluencer && (
         <SetPasswordModal influencerId={pwInfluencer.id} name={pwInfluencer.name} onClose={() => setPwInfluencer(null)} />
       )}
@@ -288,6 +303,7 @@ export default function AdminDashboard({
               <option value="pending">قيد المراجعة</option>
               <option value="approved">مقبول</option>
               <option value="rejected">مرفوض</option>
+              <option value="banned">محظور</option>
             </select>
             <select value={rankFilter} onChange={(e) => setRankFilter(e.target.value)} className="field w-44">
               <option value="">كل الرتب</option>
@@ -382,6 +398,9 @@ export default function AdminDashboard({
                   <div className="mt-1 text-xs text-white/45">
                     {inf.city} • {inf.category} • {formatFollowers(inf.followers)} متابع
                   </div>
+                  {inf.status === "banned" && inf.ban_reason && (
+                    <div className="mt-1 text-xs text-red-300">سبب الحظر: {inf.ban_reason}</div>
+                  )}
                   <div className="mt-1 flex items-center justify-start gap-1 text-[11px] text-white/35">
                     <CalendarDays className="h-3 w-3" /> تاريخ التسجيل: {formatDate(inf.created_at)}
                   </div>
@@ -392,7 +411,7 @@ export default function AdminDashboard({
                     <span className="mb-1 block text-[11px] text-white/50">الرتبة</span>
                     <select
                       value={inf.plan ?? "free"}
-                      disabled={isPending}
+                      disabled={isPending || inf.status === "banned"}
                       onChange={(e) => {
                         const plan = e.target.value as InfluencerPlan;
                         run(() => setInfluencerPlan(inf.id, plan, plan === "free" ? null : nextExpiry(inf.plan_expires_at)));
@@ -458,8 +477,8 @@ export default function AdminDashboard({
                   كلمة المرور
                 </MenuItem>
 
-                {/* لا نعرض إجراء الحالة الحالية نفسه — لو مقبول أصلاً منعرضش "قبول" تاني، وهكذا */}
-                {menuInfluencer.status !== "approved" && (
+                {/* الحالات: قيد المراجعة ← قبول/رفض، مرفوض ← قبول، مقبول ← حظر (بسبب) فقط، محظور ← رفع الحظر */}
+                {(menuInfluencer.status === "pending" || menuInfluencer.status === "rejected") && (
                   <MenuItem
                     onClick={() => {
                       setOpenMenu(null);
@@ -472,7 +491,7 @@ export default function AdminDashboard({
                     قبول
                   </MenuItem>
                 )}
-                {menuInfluencer.status !== "rejected" && (
+                {menuInfluencer.status === "pending" && (
                   <MenuItem
                     onClick={() => {
                       setOpenMenu(null);
@@ -482,6 +501,32 @@ export default function AdminDashboard({
                     disabled={isPending}
                   >
                     رفض
+                  </MenuItem>
+                )}
+                {menuInfluencer.status === "approved" && (
+                  <MenuItem
+                    onClick={() => {
+                      setOpenMenu(null);
+                      setBanInf(menuInfluencer);
+                    }}
+                    icon={<XCircle className="h-3.5 w-3.5" />}
+                    tone="danger"
+                    disabled={isPending}
+                  >
+                    حظر
+                  </MenuItem>
+                )}
+                {menuInfluencer.status === "banned" && (
+                  <MenuItem
+                    onClick={() => {
+                      setOpenMenu(null);
+                      run(() => unbanInfluencer(menuInfluencer.id));
+                    }}
+                    icon={<Check className="h-3.5 w-3.5" />}
+                    tone="success"
+                    disabled={isPending}
+                  >
+                    رفع الحظر
                   </MenuItem>
                 )}
 
@@ -669,6 +714,7 @@ function StatusPill({ status }: { status: string }) {
     pending: "border-gold/40 bg-gold/10 text-gold",
     approved: "border-green-500/40 bg-green-500/10 text-green-400",
     rejected: "border-red-500/40 bg-red-500/10 text-red-400",
+    banned: "border-red-500/60 bg-red-500/20 text-red-300",
   };
-  return <span className={`rounded-full border px-2 py-0.5 text-[10px] ${map[status]}`}>{STATUS_LABEL[status]}</span>;
+  return <span className={`rounded-full border px-2 py-0.5 text-[10px] ${map[status]}`}>{STATUS_LABELS[status as keyof typeof STATUS_LABELS]}</span>;
 }

@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS, BOOLEAN_SETTINGS_KEYS, type SiteSettings } from "./se
 import { isSaudiPhone, SAUDI_PHONE_ERROR } from "./validators";
 import { slugify, type StructuredDataBlock } from "./seo-shared";
 import type { InfluencerStatus, InfluencerPlan, AdRequestStatus } from "./types";
+import { ALLOWED_TRANSITIONS } from "./status";
 
 /** revalidatePath + drop the unstable_cache entries (settings / influencers / seo) so admin edits show immediately. */
 function invalidate(...a: Parameters<typeof revalidatePath>) {
@@ -114,7 +115,8 @@ export async function updateOwnAvatar(url: string) {
   if (url && !url.startsWith("/uploads/")) return { ok: false, message: "رابط الصورة غير صالح." };
   if (!dbEnabled) return { ok: true };
   try {
-    await exec("UPDATE influencers SET avatar_url = ? WHERE id = ?", [url, uid]);
+    const n = await exec("UPDATE influencers SET avatar_url = ? WHERE id = ? AND status = 'approved'", [url, uid]);
+    if (n === 0) return { ok: false, message: "لا يمكن تغيير الصورة في حالة حسابك الحالية." };
   } catch (e) {
     return dbError(e);
   }
@@ -252,7 +254,8 @@ export async function loginInfluencer(formData: FormData) {
   );
 
   if (!inf) return { ok: false, message: "لم يتم العثور على ملف مؤثر مرتبط بهذا الحساب." };
-  if (inf.status !== "approved") {
+  // المحظور يدخل ليرى حالة حسابه وسبب الحظر؛ باقي غير المقبولين (مراجعة/مرفوض) ممنوعون.
+  if (inf.status !== "approved" && inf.status !== "banned") {
     return {
       ok: false,
       message: "حسابك قيد المراجعة من الإدارة حالياً. سيتم تفعيل الدخول فور الموافقة على طلبك.",
@@ -348,8 +351,12 @@ export async function setInfluencerStatus(id: string, status: InfluencerStatus) 
   await guard();
   if (!dbEnabled) return { ok: true, demo: true };
   try {
-    const n = await exec("UPDATE influencers SET status = ? WHERE id = ?", [status, id]);
-    if (n === 0) return { ok: false, message: "لم يتم العثور على المؤثر." };
+    const [row] = await query<{ status: InfluencerStatus }>("SELECT status FROM influencers WHERE id = ?", [id]);
+    if (!row) return { ok: false, message: "لم يتم العثور على المؤثر." };
+    if (!ALLOWED_TRANSITIONS[row.status].includes(status)) {
+      return { ok: false, message: "هذا التغيير غير مسموح: المقبول لا يُرفض (يُحظر بسبب)، والحظر له إجراء مخصص." };
+    }
+    await exec("UPDATE influencers SET status = ? WHERE id = ?", [status, id]);
   } catch (e) {
     return dbError(e);
   }
@@ -358,20 +365,68 @@ export async function setInfluencerStatus(id: string, status: InfluencerStatus) 
   return { ok: true };
 }
 
-/** إجراء مجمع: تغيير حالة عدة مؤثرين مرة واحدة (تحديث واحد في قاعدة البيانات بدل حلقة). */
-export async function bulkSetInfluencerStatus(ids: string[], status: InfluencerStatus) {
+/** Admin-only: حظر مؤثر مقبول بسبب إجباري (يظهر للمؤثر في حسابه). الموقع العام يخفيه فوراً. */
+export async function banInfluencer(id: string, reason: string) {
   await guard();
-  if (!ids || ids.length === 0) return { ok: false, message: "لم يتم تحديد أي مؤثر." };
-  if (!dbEnabled) return { ok: true, demo: true };
-  let n: number;
+  const why = reason.trim();
+  if (why.length < 3) return { ok: false, message: "سبب الحظر مطلوب." };
+  if (!dbEnabled) return { ok: true, demo: true, message: "تم (وضع تجريبي)." };
   try {
-    n = await exec("UPDATE influencers SET status = ? WHERE id IN (?)", [status, ids]);
+    const n = await exec(
+      "UPDATE influencers SET status = 'banned', ban_reason = ?, banned_at = UTC_TIMESTAMP() WHERE id = ? AND status = 'approved'",
+      [why, id]
+    );
+    if (n === 0) return { ok: false, message: "يمكن حظر المؤثر المقبول فقط." };
   } catch (e) {
     return dbError(e);
   }
   invalidate("/admin");
   invalidate("/");
-  return { ok: true, message: `تم تحديث حالة ${n} مؤثر.` };
+  return { ok: true };
+}
+
+/**
+ * Admin-only: رفع الحظر. الباقة تتوقف أثناء الحظر، فنمدّد تاريخ انتهائها بمدة الحظر.
+ * ترتيب الـ SET مهم: تاريخ الانتهاء يُحسب قبل تصفير banned_at (MySQL ينفذ التعيينات من اليسار لليمين).
+ */
+export async function unbanInfluencer(id: string) {
+  await guard();
+  if (!dbEnabled) return { ok: true, demo: true };
+  try {
+    const n = await exec(
+      `UPDATE influencers SET
+         plan_expires_at = IF(plan_expires_at IS NULL OR banned_at IS NULL, plan_expires_at,
+           DATE_ADD(plan_expires_at, INTERVAL TIMESTAMPDIFF(SECOND, banned_at, UTC_TIMESTAMP()) SECOND)),
+         status = 'approved', ban_reason = NULL, banned_at = NULL
+       WHERE id = ? AND status = 'banned'`,
+      [id]
+    );
+    if (n === 0) return { ok: false, message: "المؤثر غير محظور." };
+  } catch (e) {
+    return dbError(e);
+  }
+  invalidate("/admin");
+  invalidate("/");
+  return { ok: true };
+}
+
+/** إجراء مجمع: تغيير حالة عدة مؤثرين (قبول/رفض فقط، ويتخطى غير المسموح: المقبول لا يُرفض). */
+export async function bulkSetInfluencerStatus(ids: string[], status: InfluencerStatus) {
+  await guard();
+  if (!ids || ids.length === 0) return { ok: false, message: "لم يتم تحديد أي مؤثر." };
+  const from = (["pending", "rejected", "approved", "banned"] as InfluencerStatus[]).filter((f) => ALLOWED_TRANSITIONS[f].includes(status));
+  if (from.length === 0) return { ok: false, message: "هذا التغيير غير مسموح." };
+  if (!dbEnabled) return { ok: true, demo: true };
+  let n: number;
+  try {
+    n = await exec("UPDATE influencers SET status = ? WHERE id IN (?) AND status IN (?)", [status, ids, from]);
+  } catch (e) {
+    return dbError(e);
+  }
+  invalidate("/admin");
+  invalidate("/");
+  const skipped = ids.length - n;
+  return { ok: true, message: `تم تحديث حالة ${n} مؤثر${skipped > 0 ? ` (تم تخطي ${skipped} لعدم جواز التغيير)` : ""}.` };
 }
 
 /** إجراء مجمع: حذف عدة مؤثرين مرة واحدة. */
@@ -501,6 +556,7 @@ export async function adminCreateInfluencer(formData: FormData) {
     return { ok: true, demo: true, message: "تمت الإضافة (وضع تجريبي — اربط قاعدة البيانات لحفظ البيانات فعلياً)." };
   }
 
+  if (p.status === "banned") p.status = "approved";
   const id = crypto.randomUUID();
   try {
     await exec(
@@ -535,8 +591,10 @@ export async function adminUpdateInfluencer(id: string, formData: FormData) {
   }
 
   try {
-    const [row] = await query("SELECT id FROM influencers WHERE id = ?", [id]);
+    const [row] = await query<{ status: InfluencerStatus }>("SELECT status FROM influencers WHERE id = ?", [id]);
     if (!row) return { ok: false, message: "لم يتم العثور على المؤثر." };
+    // الحالة تتغير من هنا فقط وفق التحويلات المسموحة؛ غير ذلك تبقى كما هي (الحظر/رفعه من إجراءاتهما).
+    if (p.status !== row.status && !ALLOWED_TRANSITIONS[row.status].includes(p.status)) p.status = row.status;
     await exec(
       `UPDATE influencers SET name=?, phone=?, email=?, city=?, category=?, bio=?, followers=?, avatar_url=?,
          socials=?, license_number=?, verified=?, status=?, slug=?, plan=?, plan_expires_at=? WHERE id = ?`,

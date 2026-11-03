@@ -58,6 +58,18 @@ export default function AccountForm({ influencer, supportWhatsapp }: { influence
         </span>
       )}
 
+      {influencer.status === "banned" && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-4 text-sm text-red-200">
+          <div className="flex items-center gap-2 font-bold text-red-300">
+            <XCircle className="h-4 w-4 shrink-0" /> حسابك محظور
+          </div>
+          {influencer.ban_reason && <p className="mt-2 leading-7">السبب: {influencer.ban_reason}</p>}
+          <p className="mt-2 text-xs text-red-200/70">
+            لا يظهر ملفك في الموقع حالياً وباقتك متوقفة. للاستفسار تواصل مع الإدارة عبر واتساب.
+          </p>
+        </div>
+      )}
+
       {influencer.status === "pending" && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
           <Clock className="h-4 w-4 shrink-0" /> طلبك قيد المراجعة من الإدارة حالياً.
@@ -87,15 +99,15 @@ export default function AccountForm({ influencer, supportWhatsapp }: { influence
 
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-start gap-3">
-            {!avatar && (
+            {(!avatar || influencer.status !== "approved") && (
               <Avatar
-                src=""
+                src={avatar}
                 name={influencer.name}
                 textClass="text-3xl"
-                className="h-28 w-28 flex-shrink-0 rounded-full border-2 border-gold/20"
+                className="h-28 w-28 flex-shrink-0 rounded-full border-2 border-gold/20 object-cover"
               />
             )}
-            <AvatarUploader value={avatar} onChange={onAvatar} label="تغيير الصورة" />
+            {influencer.status === "approved" && <AvatarUploader value={avatar} onChange={onAvatar} label="تغيير الصورة" />}
           </div>
           <div>
             <div className="font-display text-lg font-bold text-white">{influencer.name}</div>

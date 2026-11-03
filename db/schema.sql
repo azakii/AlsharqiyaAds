@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS influencers (
   ad_requests INT DEFAULT 0,
   avatar_url TEXT,
   verified TINYINT(1) DEFAULT 0,
-  status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  status ENUM('pending','approved','rejected','banned') NOT NULL DEFAULT 'pending',
   socials JSON,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   auth_user_id CHAR(36) NULL,
@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS influencers (
   slug VARCHAR(191) NULL UNIQUE,
   plan ENUM('free','pro','vip') NOT NULL DEFAULT 'free',
   plan_expires_at DATETIME NULL,
+  ban_reason TEXT NULL,
+  banned_at DATETIME NULL,
   INDEX influencers_auth_user_id_idx (auth_user_id),
   INDEX influencers_status_idx (status, created_at),
   CONSTRAINT influencers_auth_user_fk FOREIGN KEY (auth_user_id) REFERENCES users(id) ON DELETE SET NULL

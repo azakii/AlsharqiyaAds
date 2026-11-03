@@ -36,14 +36,20 @@ function pool(): Pool {
 }
 
 let migrated: Promise<void> | undefined;
-/** يضيف أعمدة الباقات لقاعدة قديمة مرة واحدة لكل عملية (ADD COLUMN لا يمس البيانات الموجودة). */
+/** يضيف أعمدة الباقات والحظر لقاعدة قديمة مرة واحدة لكل عملية (ADD COLUMN لا يمس البيانات الموجودة). */
 function ensureSchema() {
   return (migrated ??= (async () => {
     try {
-      const [cols] = await pool().query("SHOW COLUMNS FROM influencers LIKE 'plan'");
-      if ((cols as unknown[]).length === 0) {
+      const [plan] = await pool().query("SHOW COLUMNS FROM influencers LIKE 'plan'");
+      if ((plan as unknown[]).length === 0) {
         await pool().query(
           "ALTER TABLE influencers ADD COLUMN plan ENUM('free','pro','vip') NOT NULL DEFAULT 'free', ADD COLUMN plan_expires_at DATETIME NULL"
+        );
+      }
+      const [ban] = await pool().query("SHOW COLUMNS FROM influencers LIKE 'ban_reason'");
+      if ((ban as unknown[]).length === 0) {
+        await pool().query(
+          "ALTER TABLE influencers MODIFY status ENUM('pending','approved','rejected','banned') NOT NULL DEFAULT 'pending', ADD COLUMN ban_reason TEXT NULL, ADD COLUMN banned_at DATETIME NULL"
         );
       }
     } catch (e) {

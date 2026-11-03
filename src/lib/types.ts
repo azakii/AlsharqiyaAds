@@ -1,4 +1,4 @@
-export type InfluencerStatus = "pending" | "approved" | "rejected";
+export type InfluencerStatus = "pending" | "approved" | "rejected" | "banned";
 
 export type InfluencerPlan = "free" | "pro" | "vip";
 
@@ -35,6 +35,9 @@ export interface Influencer {
   /** الباقة الفعّالة: تُحسب في data.ts وتصبح "free" تلقائياً بعد plan_expires_at. */
   plan?: InfluencerPlan;
   plan_expires_at?: string | null;
+  /** سبب الحظر (يظهر للمؤثر نفسه في حسابه) — يُملأ فقط عند status = banned. */
+  ban_reason?: string | null;
+  banned_at?: string | null;
 }
 
 export type AdRequestStatus = "pending" | "approved" | "rejected";

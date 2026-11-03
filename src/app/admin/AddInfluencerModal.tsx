@@ -10,8 +10,9 @@ import { slugify, type SeoPage } from "@/lib/seo-shared";
 import AvatarUploader from "@/components/AvatarUploader";
 import SeoFieldsEditor from "./SeoFieldsEditor";
 import type { Influencer } from "@/lib/types";
+import { STATUS_LABEL, ALLOWED_TRANSITIONS } from "@/lib/status";
 
-const STATUS_OPTIONS: { value: string; label: string }[] = [
+const CREATE_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "approved", label: "مقبول" },
   { value: "pending", label: "قيد المراجعة" },
   { value: "rejected", label: "مرفوض" },
@@ -39,6 +40,9 @@ export default function AddInfluencerModal({
   onClose: () => void;
 }) {
   const isEdit = Boolean(influencer);
+  const statusOptions = influencer
+    ? [influencer.status, ...ALLOWED_TRANSITIONS[influencer.status]].map((value) => ({ value, label: STATUS_LABEL[value] }))
+    : CREATE_STATUS_OPTIONS;
   const router = useRouter();
   const [name, setName] = useState(influencer?.name || "");
   const [phone, setPhone] = useState(influencer?.phone || "");
@@ -249,8 +253,14 @@ export default function AddInfluencerModal({
               <input name="whatsapp" dir="ltr" defaultValue={influencer?.socials.whatsapp} className="modal-field" />
             </Field>
             <Field label="الحالة">
-              <select name="status" defaultValue={influencer?.status || "approved"} className="modal-field">
-                {STATUS_OPTIONS.map((s) => (
+              {/* التعديل: الحالة الحالية + المسموح بها فقط (المقبول لا يُرفض، والحظر من القائمة) */}
+              <select
+                name="status"
+                defaultValue={influencer?.status || "approved"}
+                disabled={Boolean(influencer) && statusOptions.length === 1}
+                className="modal-field disabled:opacity-60"
+              >
+                {statusOptions.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
